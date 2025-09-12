@@ -105,7 +105,7 @@
     .re-gacha-cell {
       line-height: 1.2;
     }
-    .eyeball-cell {
+    .eyeball-text {
       color: red;
       font-weight: bold;
     }
@@ -117,6 +117,26 @@
         margin-top: 10px;
         font-size: 0.9rem;
     }
+    .seed-counts p {
+      font-weight: bold;
+      color: #d9534f;
+      margin: 5px 0;
+    }
+    .path-values {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .path-values p {
+        font-weight: bold;
+        color: #007bff;
+        margin: 5px 0;
+    }
+    .path-next-10 {
+        font-size: 0.8rem;
+        margin: 5px 0;
+        white-space: pre-wrap;
+    }
     .guaranteed-eyeball-cell {
         background-color: #ffe6e6 !important;
         font-weight: bold;
@@ -125,6 +145,10 @@
     /* G1～G10用の着色クラス */
     .g-ten-pull-highlight {
         background-color: #fffacd !important; /* 薄い黄色 */
+    }
+    /* G11～G21用の着色クラス */
+    .g-path-next-10 {
+        background-color: #f0f8ff !important; /* 薄い青 */
     }
     /* 列幅を均等に設定 */
     th:first-child, td:first-child {
@@ -184,8 +208,6 @@
     </div>
     
     <div id="output"></div>
-
-    <div id="tenPullResult"></div>
 
     <div id="result-container">
       <div id="result-table-container"></div>
@@ -253,7 +275,6 @@
     const output = document.getElementById('output');
     const resultTableContainer = document.getElementById('result-table-container');
     const cellCountDisplay = document.getElementById('cellCount');
-    const tenPullResult = document.getElementById('tenPullResult');
 
     let forceReGachaMode = false;
 
@@ -273,7 +294,7 @@
       let xorshiftArray = [];
       let moduloArray = [];
       let currentSeed = seedValue;
-      for (let i = 0; i < 400; i++) {
+      for (let i = 0; i < 1000; i++) {
         currentSeed = xorshift32(currentSeed);
         xorshiftArray.push(currentSeed);
         moduloArray.push(currentSeed % 10000);
@@ -288,6 +309,7 @@
         return;
       }
       
+      // 全セルの抽選結果を事前に計算して固定
       let items = new Array(300).fill(-1);
       let rarities = new Array(300).fill(-1);
       let isEyeballCell = new Array(300).fill(false);
@@ -302,7 +324,6 @@
         '4': 10000
       };
       
-      // 全セルの抽選結果を計算
       for (let i = 0; i < 300; i++) {
         const hitSeedIndex = i;
         const isHit = (moduloArray[hitSeedIndex] < gacha.targetRate);
@@ -342,7 +363,7 @@
                     originalItemNoList.splice(itemIndex, 1);
                 }
                 const newDivisor = originalItemNoList.length;
-                const seedForReGacha = xorshiftArray[reGachaSeedIndex];
+                const seedForReGacha = xorshift32(xorshiftArray[reGachaSeedIndex]);
                 const reGachaOffset = seedForReGacha % newDivisor;
                 const reGachaItemId = originalItemNoList[reGachaOffset];
                 reGachaItems[i] = itemNameMaster[reGachaItemId];
@@ -361,33 +382,22 @@
           path.push(currentCellIndex);
           
           if (isEyeballCell[currentCellIndex]) {
-              const nextRollRow = Math.floor((currentCellIndex + 1) / 3) + 1;
-              const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((currentCellIndex + 1) % 3));
-              const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-              displayItems[currentCellIndex] = `(${nextRollAddress})目玉`;
               lastActualItemId = -1;
               currentCellIndex += 1;
           } else {
               const currentItem = items[currentCellIndex];
-              const currentItemName = itemNameMaster[currentItem] || "---";
-              const currentReGachaItemName = reGachaItems[currentCellIndex];
               const rarityId = rarities[currentCellIndex];
 
               let isReGacha = false;
               if (rarityId === 1 && lastActualItemId === currentItem) {
                   isReGacha = true;
               }
-              if (rarityId === 1 && forceReGachaMode) {
-                  isReGacha = true;
-              }
               
-              if (isReGacha && currentReGachaItemName !== "---") {
+              if (isReGacha && reGachaItems[currentCellIndex] !== "---") {
                   isReGachaOccurred[currentCellIndex] = true;
-                  displayItems[currentCellIndex] = `${currentItemName}▼<br>${currentReGachaItemName}`;
-                  lastActualItemId = itemNameToId[currentReGachaItemName];
+                  lastActualItemId = itemNameToId[reGachaItems[currentCellIndex]];
                   currentCellIndex += 4;
               } else {
-                  displayItems[currentCellIndex] = currentItemName;
                   lastActualItemId = currentItem;
                   currentCellIndex += 3;
               }
@@ -404,74 +414,91 @@
         if ((i + 1) === nextGuaranteedRoll) {
           guaranteedEyeballIndices.push(index);
           guaranteedCount++;
-          let originalItemName;
-          if (isEyeballCell[index]) {
-            originalItemName = '目玉';
-          } else if (isReGachaOccurred[index]) {
-            originalItemName = reGachaItems[index];
-          } else {
-            originalItemName = itemNameMaster[items[index]] || "不明";
-          }
-          displayItems[index] = `目玉(確定)／${originalItemName}`;
           nextGuaranteedRoll += 30;
         }
       }
 
-      // 非着色セルも表示
+      // 非着色セルも含むすべてのセルの表示内容を決定
       for (let i = 0; i < 300; i++) {
-          if (!path.includes(i)) {
-              let itemName = itemNameMaster[items[i]] || "---";
-              if (isEyeballCell[i]) {
-                  itemName = "目玉";
-              }
-              displayItems[i] = itemName;
-          }
-      }
-
-      output.innerHTML = '';
-
-      // 10連ガチャの抽選ロジック
-      const tenPullRows = [];
-      const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls : -1;
-      
-      // STEP 1: 目玉(確定)抽選と目玉抽選を先にFIX
-      let nonEyeballIndices = [];
-      for (let i = 0; i < 10; i++) {
-          if ((i + 1) === guaranteedRoll) {
-              tenPullRows.push({ type: 'guaranteed' });
+          if (isEyeballCell[i]) {
+              const nextRollRow = Math.floor((i + 1) / 3) + 1;
+              const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((i + 1) % 3));
+              const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+              displayItems[i] = `<span class="eyeball-text">${nextRollAddress})目玉</span>`;
+          } else if (isReGachaOccurred[i] && path.includes(i)) {
+              const nextIndex = i + 4;
+              const nextRollRow = Math.floor((nextIndex) / 3) + 1;
+              const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
+              const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+              displayItems[i] = `${itemNameMaster[items[i]]}▼<br>${reGachaItems[i]} [${nextRollAddress}]`;
           } else {
-              const isHit = (moduloArray[i] < gacha.targetRate);
-              if (isHit) {
-                  tenPullRows.push({ type: 'eyeball' });
-              } else {
-                  tenPullRows.push({ type: 'normal', originalIndex: i });
-                  nonEyeballIndices.push(i);
-              }
+              displayItems[i] = itemNameMaster[items[i]] || '---';
           }
       }
       
-      // STEP 2: ハズレ枠のアイテム抽選
-      let lastTenPullItemId = -1;
-      let currentSeedOffset = 10;
+      // 消費シード数とpathの値を計算
+      const seedCounts = [];
+      let currentSeedIndex = 0;
+      let lastItemId = -1;
       
-      for (let i = 0; i < tenPullRows.length; i++) {
-          if (tenPullRows[i].type !== 'normal') {
-              if (tenPullRows[i].type === 'guaranteed') {
-                  tenPullRows[i].result = '<span style="color:red; font-weight:bold;">目玉(確定)</span>';
-              } else if (tenPullRows[i].type === 'eyeball') {
-                  tenPullRows[i].result = '<span style="color:red; font-weight:bold;">目玉</span>';
-              }
-              lastTenPullItemId = -1;
+      for(let i = 0; i < 5; i++) {
+          if (currentSeedIndex >= 300 || currentSeedIndex >= xorshiftArray.length || path.length <= i) {
+              seedCounts.push("---");
               continue;
           }
 
-          const raritySeedIndex = currentSeedOffset;
-          const itemSeedIndex = currentSeedOffset + 1;
+          const isHit = (moduloArray[currentSeedIndex] < gacha.targetRate);
+          let startSeed = currentSeedIndex;
+          
+          if (isHit) {
+              currentSeedIndex += 1;
+              lastItemId = -1;
+          } else {
+              const rarityId = rarities[currentCellIndex];
+              const currentItem = items[currentCellIndex];
+              const isReGacha = (rarityId === 1 && lastItemId === currentItem && reGachaItems[currentCellIndex] !== "---");
+
+              if (isReGacha) {
+                  currentSeedIndex += 4;
+                  lastItemId = itemNameToId[reGachaItems[startSeed]];
+              } else {
+                  currentSeedIndex += 3;
+                  lastItemId = currentItem;
+              }
+          }
+
+          seedCounts.push(currentSeedIndex - startSeed);
+      }
+      
+
+      // G列の10連結果の抽選ロジック
+      const tenPullRows = [];
+      const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls : -1;
+      
+      let lastTenPullItemId = -1;
+      let currentSeedOffset = 0;
+      
+      for (let i = 0; i < 10; i++) {
+        let pullResult = {};
+        const isHit = (moduloArray[currentSeedOffset] < gacha.targetRate);
+        const isGuaranteed = (i + 1) === guaranteedRoll;
+
+        if (isGuaranteed) {
+          pullResult.result = '目玉(確定)';
+          lastTenPullItemId = -1;
+          currentSeedOffset += 1;
+        } else if (isHit) {
+          pullResult.result = '目玉';
+          lastTenPullItemId = -1;
+          currentSeedOffset += 1;
+        } else {
+          const raritySeedIndex = currentSeedOffset + 1;
+          const itemSeedIndex = currentSeedOffset + 2;
 
           if (itemSeedIndex >= xorshiftArray.length) {
-              tenPullRows[i].result = 'SEED不足';
+              pullResult.result = 'SEED不足';
               lastTenPullItemId = -1;
-              currentSeedOffset += 2;
+              currentSeedOffset += 3;
               continue;
           }
 
@@ -483,8 +510,8 @@
           else { rarityId = 4; }
 
           const itemInfo = master[rarityId];
-          let itemName = "---";
           let currentItemId = -1;
+          let itemName = "---";
           
           if (itemInfo.itemCounts > 0) {
               const itemOffset = xorshiftArray[itemSeedIndex] % itemInfo.itemCounts;
@@ -501,34 +528,70 @@
                       originalItemNoList.splice(itemIndex, 1);
                   }
                   const newDivisor = originalItemNoList.length;
-                  const seedForReGacha = xorshiftArray[reGachaSeedIndex];
+                  const seedForReGacha = xorshift32(xorshiftArray[reGachaSeedIndex]);
                   const reGachaOffset = seedForReGacha % newDivisor;
                   const reGachaItemId = originalItemNoList[reGachaOffset];
-                  tenPullRows[i].result = `${itemName}▼<br>${itemNameMaster[reGachaItemId]}`;
+                  pullResult.result = `${itemName}▼<br>${itemNameMaster[reGachaItemId]}`;
                   lastTenPullItemId = reGachaItemId;
-                  currentSeedOffset += 3;
+                  currentSeedOffset += 4;
               } else {
-                  tenPullRows[i].result = itemName;
+                  pullResult.result = itemName;
                   lastTenPullItemId = currentItemId;
-                  currentSeedOffset += 2;
+                  currentSeedOffset += 3;
               }
           } else {
-              tenPullRows[i].result = itemName;
+              pullResult.result = itemName;
               lastTenPullItemId = currentItemId;
-              currentSeedOffset += 2;
+              currentSeedOffset += 3;
           }
+        }
+        tenPullRows.push(pullResult);
       }
       
-      tenPullResult.innerHTML = '';
       const finalTenPullResults = tenPullRows.map(row => row.result);
-      createAndDisplayTable(displayItems, path, isEyeballCell, guaranteedEyeballIndices, finalTenPullResults);
+
+      // G11からG20までのデータを作成
+      const gPathNext10Results = new Array(10).fill('---');
+      for(let i = 1; i <= 10; i++) {
+        if(path.length > i) {
+            const baseValue = path[i];
+            let eyeballCount = 0;
+            for(let j = 1; j <= 10; j++) {
+                const seedIndex = baseValue + j;
+                if(seedIndex < moduloArray.length && moduloArray[seedIndex] < gacha.targetRate) {
+                    eyeballCount++;
+                }
+            }
+            gPathNext10Results[i-1] = eyeballCount;
+        }
+      }
+
+      // 次のガチャの番地を計算
+      const nextRollIndex = currentSeedOffset;
+      const nextRollRow = Math.floor(nextRollIndex / 3) + 1;
+      const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextRollIndex % 3));
+      const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+
+      // G10の表示内容を更新
+      const originalG10Content = finalTenPullResults[9];
+      let newG10Display;
       
-      const normalCount = coloredCellCount;
+      if (originalG10Content.includes('目玉')) {
+        newG10Display = `<span class="eyeball-text">${nextRollAddress}) ${originalG10Content}</span>`;
+      } else {
+        newG10Display = `${nextRollAddress}) ${originalG10Content}`;
+      }
+      
+      finalTenPullResults[9] = newG10Display;
+
+      createAndDisplayTable(items, path, isEyeballCell, guaranteedEyeballIndices, finalTenPullResults, rarities, isReGachaOccurred, reGachaItems, gPathNext10Results);
+      
+      const normalCount = coloredCellCount - guaranteedCount;
       const totalCount = normalCount + guaranteedCount;
       cellCountDisplay.innerHTML = `(通常ロール数) ${normalCount} + (確定ロール数) ${guaranteedCount} = (合計ロール数) ${totalCount}`;
     }
     
-    function createAndDisplayTable(items, path, isEyeballCell, guaranteedEyeballIndices, tenPullRows) {
+    function createAndDisplayTable(items, path, isEyeballCell, guaranteedEyeballIndices, tenPullRows, rarities, isReGachaOccurred, reGachaItems, gPathNext10Results) {
         let table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>B</th><th>C</th><th>G</th></tr></thead><tbody>';
         
         const pathSet = new Set(path);
@@ -539,28 +602,59 @@
             for (let c = 0; c < 3; c++) {
                 const index = r * 3 + c;
                 let classList = ['re-gacha-cell'];
-                
+                let cellContent = "---";
+
                 if (pathSet.has(index)) {
+                    // 抽選経路上のセル
                     classList.push('path-cell');
+                    if (guaranteedEyeballSet.has(index)) {
+                        classList.push('guaranteed-eyeball-cell');
+                        let originalItemName;
+                        if (isEyeballCell[index]) {
+                            originalItemName = '目玉';
+                        } else if (isReGachaOccurred[index]) {
+                            originalItemName = reGachaItems[index];
+                        } else {
+                            originalItemName = itemNameMaster[items[index]] || "不明";
+                        }
+                        cellContent = `<span class="eyeball-text">目玉(確定)／${originalItemName}</span>`;
+                    } else if (isEyeballCell[index]) {
+                        cellContent = `<span class="eyeball-text">${String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3))}${Math.floor((index + 1) / 3) + 1})目玉</span>`;
+                    } else if (isReGachaOccurred[index]) {
+                        const nextIndex = index + 4;
+                        const nextRollRow = Math.floor((nextIndex) / 3) + 1;
+                        const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
+                        const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+                        cellContent = `${itemNameMaster[items[index]]}▼<br>${reGachaItems[index]} [${nextRollAddress}]`;
+                    } else {
+                        cellContent = itemNameMaster[items[index]] || "---";
+                    }
+                } else {
+                    // 抽選経路外のセル
                     if (isEyeballCell[index]) {
-                        classList.push('eyeball-cell');
+                         cellContent = `<span class="eyeball-text">${String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3))}${Math.floor((index + 1) / 3) + 1})目玉</span>`;
+                    } else {
+                         cellContent = itemNameMaster[items[index]] || '---';
                     }
                 }
-                
-                if (guaranteedEyeballSet.has(index)) {
-                    classList.push('guaranteed-eyeball-cell');
-                }
-                
-                const cellContent = items[index];
+
                 table += `<td class="${classList.join(' ')}">${cellContent}</td>`;
             }
             
             // G列の追加と着色
             let gCellClass = 're-gacha-cell';
+            let gCellContent = '';
             if (r < 10) {
                 gCellClass += ' g-ten-pull-highlight';
+                gCellContent = tenPullRows[r] || '';
+            } else if (r >= 10 && r < 20) {
+                gCellClass += ' g-path-next-10';
+                gCellContent = gPathNext10Results[r - 10];
+            } else {
+                gCellContent = '';
             }
-            table += `<td class="${gCellClass}">${r < 10 ? (tenPullRows[r] || '---') : ''}</td>`;
+
+            table += `<td class="${gCellClass}">${gCellContent}</td>`;
 
             table += '</tr>';
         }
