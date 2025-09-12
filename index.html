@@ -424,7 +424,33 @@
                 const seedForReGacha = xorshiftArray[reGachaSeedIndex];
                 const reGachaOffset = seedForReGacha % newDivisor;
                 const reGachaItemId = originalItemNoList[reGachaOffset];
-                reGachaItems[i] = itemNameMaster[reGachaItemId];
+                
+                // 再抽選アイテムを表示するかどうかの判定ロジック
+                let showReGacha = false;
+                const prevItemIndex = i - 3;
+                const prevPrevItemIndex = i - 2;
+
+                if (items[i] !== -1) {
+                    // 3SEED前と再抽選前アイテムが一致するか判定
+                    if (prevItemIndex >= 0 && items[i] === items[prevItemIndex]) {
+                        showReGacha = true;
+                    }
+                    // 3SEED前の再抽選後アイテムと再抽選前アイテムが一致するか判定
+                    if (!showReGacha && prevItemIndex >= 0 && reGachaItems[prevItemIndex] !== "---" && items[i] === itemNameToId[reGachaItems[prevItemIndex]]) {
+                        showReGacha = true;
+                    }
+                    // 1SEED前が目玉の時の2SEED前の再抽選アイテムと再抽選前アイテムが一致するか判定
+                    if (!showReGacha && prevPrevItemIndex >= 0 && isEyeballCell[i-1]) {
+                        if (reGachaItems[prevPrevItemIndex] !== "---" && items[i] === itemNameToId[reGachaItems[prevPrevItemIndex]]) {
+                             showReGacha = true;
+                        }
+                    }
+                }
+                
+                // 判定結果に基づいて再抽選アイテムを格納
+                if (showReGacha) {
+                    reGachaItems[i] = itemNameMaster[reGachaItemId];
+                }
             }
         }
       }
