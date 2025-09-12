@@ -182,6 +182,18 @@
         margin-bottom: 5px;
         font-weight: bold;
     }
+    #seedInfo {
+        display: none; /* 非表示 */
+    }
+    #guaranteedStatus {
+        display: none; /* 非表示 */
+    }
+    #tenPullGachaInfo {
+      display: none; /* 非表示 */
+    }
+    #extraEyeballInfo {
+        display: none; /* 非表示 */
+    }
   </style>
 </head>
 <body>
@@ -194,6 +206,7 @@
         <label for="gachaIdSelector">Gacha</label>
         <select id="gachaIdSelector">
           <option value="34">34: ハロウィン</option>
+          <option value="42">42: 1.1億DL記念</option>
         </select>
       </div>
       <div class="input-item">
@@ -207,6 +220,10 @@
       <button id="executeButton">更新</button>
     </div>
     
+    <div id="guaranteedStatus"></div>
+    <div id="extraEyeballInfo"></div>
+    <div id="tenPullGachaInfo"></div>
+    <div id="seedInfo"></div>
     <div id="output"></div>
 
     <div id="result-container">
@@ -229,6 +246,11 @@
         name: 'ハロウィン',
         targetRate: 600,
         rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 }
+      },
+      '42': {
+        name: '1.1億DL記念',
+        targetRate: 500,
+        rarityRates: { '0': 1000, '1': 3000, '2': 5000, '3': 1000, '4': 0 }
       }
     };
 
@@ -237,7 +259,14 @@
         '0': { itemCounts: 1, itemNo: [10] },
         '1': { itemCounts: 4, itemNo: [0, 3, 11, 12] },
         '2': { itemCounts: 4, itemNo: [2, 4, 5, 14] },
-        '3': { itemCounts: 0, itemNo: [] },
+        '3': { itemCounts: 3, itemNo: [375, 381, 689] },
+        '4': { itemCounts: 0, itemNo: [] }
+      },
+      '42': {
+        '0': { itemCounts: 1, itemNo: [10] },
+        '1': { itemCounts: 4, itemNo: [0, 3, 11, 12] },
+        '2': { itemCounts: 4, itemNo: [2, 4, 5, 14] },
+        '3': { itemCounts: 3, itemNo: [375, 381, 689] },
         '4': { itemCounts: 0, itemNo: [] }
       }
     };
@@ -252,7 +281,10 @@
       10: "5千XP",
       11: "1万XP",
       12: "3万XP",
-      14: "10万XP"
+      14: "10万XP",
+      375: "記念ネコ",
+      381: "ねこ農家",
+      689: "石の上にも10年ネコ"
     };
 
     const itemNameToId = {
@@ -265,7 +297,18 @@
       "5千XP": 10,
       "1万XP": 11,
       "3万XP": 12,
-      "10万XP": 14
+      "10万XP": 14,
+      "記念ネコ": 375,
+      "ねこ農家": 381,
+      "石の上にも10年ネコ": 689
+    };
+    
+    const rarityNames = {
+        '0': '通常',
+        '1': 'レア',
+        '2': '激レア',
+        '3': '超激レア',
+        '4': '伝説レア'
     };
 
     const seedInput = document.getElementById('seedInput');
@@ -275,8 +318,6 @@
     const output = document.getElementById('output');
     const resultTableContainer = document.getElementById('result-table-container');
     const cellCountDisplay = document.getElementById('cellCount');
-
-    let forceReGachaMode = false;
 
     executeButton.addEventListener('click', () => {
         runSimulationAndDisplay();
@@ -435,80 +476,46 @@
               displayItems[i] = itemNameMaster[items[i]] || '---';
           }
       }
-      
-      // 消費シード数とpathの値を計算
-      const seedCounts = [];
-      let currentSeedIndex = 0;
-      let lastItemId = -1;
-      
-      for(let i = 0; i < 5; i++) {
-          if (currentSeedIndex >= 300 || currentSeedIndex >= xorshiftArray.length || path.length <= i) {
-              seedCounts.push("---");
-              continue;
-          }
-
-          const isHit = (moduloArray[currentSeedIndex] < gacha.targetRate);
-          let startSeed = currentSeedIndex;
-          
-          if (isHit) {
-              currentSeedIndex += 1;
-              lastItemId = -1;
-          } else {
-              const rarityId = rarities[currentCellIndex];
-              const currentItem = items[currentCellIndex];
-              const isReGacha = (rarityId === 1 && lastItemId === currentItem && reGachaItems[currentCellIndex] !== "---");
-
-              if (isReGacha) {
-                  currentSeedIndex += 4;
-                  lastItemId = itemNameToId[reGachaItems[startSeed]];
-              } else {
-                  currentSeedIndex += 3;
-                  lastItemId = currentItem;
-              }
-          }
-
-          seedCounts.push(currentSeedIndex - startSeed);
-      }
-      
 
       // G列の10連結果の抽選ロジック
-      const tenPullRows = [];
+      const tenPullResults = new Array(11).fill(null); // 配列サイズを11に変更
       const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls : -1;
-      
-      let lastTenPullItemId = -1;
+      let remainingIndices = Array.from({length: 10}, (_, i) => i + 1); // 1始まりに変更
       let currentSeedOffset = 0;
+      let tenPullLastItemId = -1;
       
-      for (let i = 0; i < 10; i++) {
-        let pullResult = {};
-        const isHit = (moduloArray[currentSeedOffset] < gacha.targetRate);
-        const isGuaranteed = (i + 1) === guaranteedRoll;
-
-        if (isGuaranteed) {
-          pullResult.result = '目玉(確定)';
-          lastTenPullItemId = -1;
-          currentSeedOffset += 1;
-        } else if (isHit) {
-          pullResult.result = '目玉';
-          lastTenPullItemId = -1;
-          currentSeedOffset += 1;
-        } else {
-          const raritySeedIndex = currentSeedOffset + 1;
-          const itemSeedIndex = currentSeedOffset + 2;
-
-          if (itemSeedIndex >= xorshiftArray.length) {
-              pullResult.result = 'SEED不足';
-              lastTenPullItemId = -1;
-              currentSeedOffset += 3;
-              continue;
+      // 1. 確定枠の処理
+      if (guaranteedRoll !== -1) {
+          tenPullResults[guaranteedRoll] = '目玉(確定)';
+          const guaranteedIndex = remainingIndices.indexOf(guaranteedRoll);
+          remainingIndices.splice(guaranteedIndex, 1);
+      }
+      
+      // 2. 目玉の判定
+      const eyeballIndices = [];
+      for (const index of remainingIndices) {
+          const isHit = (moduloArray[currentSeedOffset] < gacha.targetRate);
+          
+          if (isHit) {
+              tenPullResults[index] = '目玉';
+              eyeballIndices.push(index);
           }
+          currentSeedOffset++;
+      }
+      remainingIndices = remainingIndices.filter(index => !eyeballIndices.includes(index));
 
+      // 3. レアリティ及びアイテムの算出
+      for (const index of remainingIndices) {
+          let raritySeedIndex = currentSeedOffset;
+          let itemSeedIndex = currentSeedOffset + 1;
+          
           let rarityId;
           if (moduloArray[raritySeedIndex] < thresholds['0']) { rarityId = 0; }
           else if (moduloArray[raritySeedIndex] < thresholds['1']) { rarityId = 1; }
           else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; }
           else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; }
           else { rarityId = 4; }
-
+          
           const itemInfo = master[rarityId];
           let currentItemId = -1;
           let itemName = "---";
@@ -519,7 +526,9 @@
               itemName = itemNameMaster[currentItemId] || "不明";
           }
           
-          if (rarityId === 1 && lastTenPullItemId === currentItemId) {
+          let displayItemName = itemName;
+          
+          if (rarityId === 1 && tenPullLastItemId === currentItemId) {
               const reGachaSeedIndex = itemSeedIndex + 1;
               if (reGachaSeedIndex < xorshiftArray.length) {
                   const originalItemNoList = [...itemInfo.itemNo];
@@ -531,24 +540,20 @@
                   const seedForReGacha = xorshift32(xorshiftArray[reGachaSeedIndex]);
                   const reGachaOffset = seedForReGacha % newDivisor;
                   const reGachaItemId = originalItemNoList[reGachaOffset];
-                  pullResult.result = `${itemName}▼<br>${itemNameMaster[reGachaItemId]}`;
-                  lastTenPullItemId = reGachaItemId;
-                  currentSeedOffset += 4;
-              } else {
-                  pullResult.result = itemName;
-                  lastTenPullItemId = currentItemId;
+                  displayItemName = `${itemName}▼<br>${itemNameMaster[reGachaItemId]}`;
+                  tenPullLastItemId = reGachaItemId;
                   currentSeedOffset += 3;
+              } else {
+                  tenPullLastItemId = currentItemId;
+                  currentSeedOffset += 2;
               }
           } else {
-              pullResult.result = itemName;
-              lastTenPullItemId = currentItemId;
-              currentSeedOffset += 3;
+              tenPullLastItemId = currentItemId;
+              currentSeedOffset += 2;
           }
-        }
-        tenPullRows.push(pullResult);
+          
+          tenPullResults[index] = displayItemName;
       }
-      
-      const finalTenPullResults = tenPullRows.map(row => row.result);
 
       // G11からG20までのデータを作成
       const gPathNext10Results = new Array(10).fill('---');
@@ -573,7 +578,7 @@
       const nextRollAddress = `${nextRollCol}${nextRollRow}`;
 
       // G10の表示内容を更新
-      const originalG10Content = finalTenPullResults[9];
+      const originalG10Content = tenPullResults[10];
       let newG10Display;
       
       if (originalG10Content.includes('目玉')) {
@@ -582,9 +587,10 @@
         newG10Display = `${nextRollAddress}) ${originalG10Content}`;
       }
       
-      finalTenPullResults[9] = newG10Display;
+      tenPullResults[10] = newG10Display;
 
-      createAndDisplayTable(items, path, isEyeballCell, guaranteedEyeballIndices, finalTenPullResults, rarities, isReGachaOccurred, reGachaItems, gPathNext10Results);
+
+      createAndDisplayTable(items, path, isEyeballCell, guaranteedEyeballIndices, tenPullResults, rarities, isReGachaOccurred, reGachaItems, gPathNext10Results);
       
       const normalCount = coloredCellCount - guaranteedCount;
       const totalCount = normalCount + guaranteedCount;
@@ -646,7 +652,7 @@
             let gCellContent = '';
             if (r < 10) {
                 gCellClass += ' g-ten-pull-highlight';
-                gCellContent = tenPullRows[r] || '';
+                gCellContent = tenPullRows[r + 1] || '';
             } else if (r >= 10 && r < 20) {
                 gCellClass += ' g-path-next-10';
                 gCellContent = gPathNext10Results[r - 10];
@@ -661,14 +667,6 @@
         
         table += '</tbody></table>';
         resultTableContainer.innerHTML = table;
-
-        const rowNumberHeader = document.querySelector('.row-row-number-header');
-        if (rowNumberHeader) {
-            rowNumberHeader.addEventListener('click', () => {
-                forceReGachaMode = !forceReGachaMode;
-                runSimulationAndDisplay();
-            });
-        }
     }
 
     runSimulationAndDisplay();
