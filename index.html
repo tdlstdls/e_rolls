@@ -444,97 +444,106 @@
       // 目玉判定に使用されるSEED
       let eyeballSeeds = [];
       for (let i = 0; i < 10; i++) {
-          eyeballSeeds.push(i);
-      }
-      
-      // 確定枠がある場合、その位置のSEEDをスキップ
-      if (guaranteedRoll !== -1) {
-          eyeballSeeds.splice(guaranteedRoll - 1, 1);
-      }
-
-      // 10連ガチャのロール結果を格納
-      let tenPullResults = [];
-      let currentEyeballSeedIndex = 0;
-      
-      for (let i = 0; i < 10; i++) {
-          if (i + 1 === guaranteedRoll) {
-              tenPullResults.push({ type: 'guaranteed', roll: i + 1 });
-          } else {
-              const seedIndex = eyeballSeeds[currentEyeballSeedIndex];
-              const isHit = (moduloArray[seedIndex] < gacha.targetRate);
-              tenPullResults.push({ type: isHit ? 'eyeball' : 'normal', roll: i + 1, seed: seedIndex + 1 });
-              currentEyeballSeedIndex++;
+          if (i + 1 !== guaranteedRoll) {
+              eyeballSeeds.push(i);
           }
       }
       
-      tenPullResults.forEach(result => {
-          if (result.type === 'guaranteed') {
-              tenPullHtml += `<p>roll${result.roll}: <span style="color:red; font-weight:bold;">目玉(確定)</span></p>`;
-          } else if (result.type === 'eyeball') {
-              tenPullHtml += `<p>roll${result.roll}: <span style="color:red; font-weight:bold;">目玉</span> (SEED${result.seed})</p>`;
-          } else {
-              tenPullHtml += `<p>roll${result.roll}: ハズレ (SEED${result.seed})</p>`;
-          }
-      });
-      
-      // ハズレ枠の計算と表示
-      let normalRolls = tenPullResults.filter(r => r.type === 'normal');
+      // ハズレ枠の抽選結果を先に計算
+      let normalRolls = [];
       let currentSeedOffset = 0;
-
-      if (normalRolls.length > 0) {
-          tenPullHtml += '<hr><h3>ハズレ枠の算定</h3>';
-          
-          let lastUsedSeedIndex = eyeballSeeds[eyeballSeeds.length - 1];
-          currentSeedOffset = lastUsedSeedIndex + 1;
-
-          for (let i = 0; i < normalRolls.length; i++) {
-              const raritySeedIndex = currentSeedOffset;
-              const itemSeedIndex = currentSeedOffset + 1;
-
-              if (itemSeedIndex >= xorshiftArray.length) {
-                  tenPullHtml += `<p>ロール ${normalRolls[i].roll}: SEEDが不足しています。</p>`;
-                  break;
-              }
-
-              let rarityId;
-              if (moduloArray[raritySeedIndex] < thresholds['0']) { rarityId = 0; }
-              else if (moduloArray[raritySeedIndex] < thresholds['1']) { rarityId = 1; }
-              else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; }
-              else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; }
-              else { rarityId = 4; }
-
-              const itemInfo = master[rarityId];
-              let itemName = "---";
-              if (itemInfo.itemCounts > 0) {
-                  const itemOffset = xorshiftArray[itemSeedIndex] % itemInfo.itemCounts;
-                  itemName = itemNameMaster[itemInfo.itemNo[itemOffset]] || "不明";
-              }
-
-              tenPullHtml += `<p>ロール ${normalRolls[i].roll}: レアリティ(${rarityId}) -> ${itemName} (SEED${raritySeedIndex+1}, ${itemSeedIndex+1})</p>`;
-
-              // 再抽選の判定
-              let seedConsumed = 2; // レアリティとアイテムで2つ消費
-              if (rarityId === 1 && itemInfo.itemCounts >= 2) {
-                  const reGachaSeedIndex = itemSeedIndex + 1;
-                  if (reGachaSeedIndex < xorshiftArray.length) {
-                      const originalItemNoList = [...itemInfo.itemNo];
-                      const itemIndex = originalItemNoList.indexOf(itemInfo.itemNo[xorshiftArray[itemSeedIndex] % itemInfo.itemCounts]);
-                      if (itemIndex > -1) {
-                          originalItemNoList.splice(itemIndex, 1);
-                      }
-                      const newDivisor = originalItemNoList.length;
-                      const seedForReGacha = xorshiftArray[reGachaSeedIndex];
-                      const reGachaOffset = seedForReGacha % newDivisor;
-                      const reGachaItemId = originalItemNoList[reGachaOffset];
-                      const reGachaItemName = itemNameMaster[reGachaItemId];
-                      tenPullHtml += `<p style="margin-left: 20px;">└ 再抽選: ${reGachaItemName} (SEED${reGachaSeedIndex+1})</p>`;
-                      seedConsumed = 3; // 再抽選でSEEDを1つ追加消費
-                  }
-              }
-              currentSeedOffset += seedConsumed;
+      
+      if (eyeballSeeds.length > 0) {
+        currentSeedOffset = eyeballSeeds[eyeballSeeds.length - 1] + 1;
+      }
+      
+      let tempRolls = [];
+      for (let i = 0; i < 10; i++) {
+          if (i + 1 !== guaranteedRoll) {
+              tempRolls.push({ roll: i + 1, type: 'normal' });
           }
       }
 
+      for (let i = 0; i < tempRolls.length; i++) {
+          const raritySeedIndex = currentSeedOffset;
+          const itemSeedIndex = currentSeedOffset + 1;
+
+          if (itemSeedIndex >= xorshiftArray.length) {
+              normalRolls.push({
+                  roll: tempRolls[i].roll,
+                  rarityName: 'SEED不足',
+                  itemName: '---',
+                  isReGacha: false
+              });
+              break;
+          }
+
+          let rarityId;
+          if (moduloArray[raritySeedIndex] < thresholds['0']) { rarityId = 0; }
+          else if (moduloArray[raritySeedIndex] < thresholds['1']) { rarityId = 1; }
+          else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; }
+          else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; }
+          else { rarityId = 4; }
+
+          const itemInfo = master[rarityId];
+          let itemName = "---";
+          if (itemInfo.itemCounts > 0) {
+              const itemOffset = xorshiftArray[itemSeedIndex] % itemInfo.itemCounts;
+              itemName = itemNameMaster[itemInfo.itemNo[itemOffset]] || "不明";
+          }
+          
+          let seedConsumed = 2;
+          let reGachaItemName = null;
+          if (rarityId === 1 && itemInfo.itemCounts >= 2) {
+              const reGachaSeedIndex = itemSeedIndex + 1;
+              if (reGachaSeedIndex < xorshiftArray.length) {
+                  const originalItemNoList = [...itemInfo.itemNo];
+                  const itemIndex = originalItemNoList.indexOf(itemInfo.itemNo[xorshiftArray[itemSeedIndex] % itemInfo.itemCounts]);
+                  if (itemIndex > -1) {
+                      originalItemNoList.splice(itemIndex, 1);
+                  }
+                  const newDivisor = originalItemNoList.length;
+                  const seedForReGacha = xorshiftArray[reGachaSeedIndex];
+                  const reGachaOffset = seedForReGacha % newDivisor;
+                  reGachaItemName = itemNameMaster[originalItemNoList[reGachaOffset]];
+                  seedConsumed = 3;
+              }
+          }
+
+          normalRolls.push({
+              roll: tempRolls[i].roll,
+              itemName: itemName,
+              isReGacha: reGachaItemName !== null,
+              reGachaItemName: reGachaItemName
+          });
+          currentSeedOffset += seedConsumed;
+      }
+      
+      // 10連ガチャの最終結果を組み立て
+      let normalRollIndex = 0;
+      for (let i = 0; i < 10; i++) {
+          const currentRoll = i + 1;
+          
+          if (currentRoll === guaranteedRoll) {
+              tenPullHtml += `<p>roll${currentRoll}: <span style="color:red; font-weight:bold;">目玉(確定)</span></p>`;
+          } else {
+              const seedIndex = eyeballSeeds[normalRollIndex];
+              const isHit = (moduloArray[seedIndex] < gacha.targetRate);
+
+              if (isHit) {
+                  tenPullHtml += `<p>roll${currentRoll}: <span style="color:red; font-weight:bold;">目玉</span></p>`;
+              } else {
+                  const normalResult = normalRolls[normalRollIndex];
+                  let itemText = normalResult.itemName;
+                  if (normalResult.isReGacha) {
+                      itemText = `${normalResult.itemName}▼<br>${normalResult.reGachaItemName}`;
+                  }
+                  tenPullHtml += `<p>roll${currentRoll}: ${itemText}</p>`;
+              }
+              normalRollIndex++;
+          }
+      }
+      
       tenPullResult.innerHTML = tenPullHtml;
     }
     
