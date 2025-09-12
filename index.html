@@ -5,205 +5,152 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>イベロ</title>
   <style>
+    /* グローバル設定 */
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       line-height: 1.6;
-      padding: 10px;
-      max-width: 1000px;
-      margin: auto;
-      background-color: #f0f2f5;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #f4f7f9;
       color: #333;
-      font-size: 16px;
     }
+
+    /* コンテナとセクション */
     .container {
       background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
     }
-    h1, h2, h3 {
+    
+    h1 {
       color: #004085;
-      border-bottom: 2px solid #e9ecef;
-      padding-bottom: 5px;
-      font-size: 1.5rem;
+      font-size: 2.2rem;
+      border-bottom: 3px solid #e9ecef;
+      padding-bottom: 10px;
+      margin-top: 0;
+      text-align: center;
     }
-    .input-group {
-      margin-bottom: 10px;
-    }
+
+    /* フォームコントロール */
     .controls {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 30px;
+      padding: 15px;
+      background-color: #f9fbfd;
+      border-radius: 8px;
     }
-    .controls .input-item {
+    
+    .input-item {
+      flex: 1 1 250px;
       display: flex;
       flex-direction: column;
-      flex: 1;
     }
-    .controls .input-item label {
-      font-weight: bold;
-      margin-bottom: 5px;
-      font-size: 1rem;
+
+    label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #555;
     }
-    .controls .input-item input[type="number"],
-    .controls .input-item select {
-      padding: 10px;
+    
+    input[type="number"],
+    select {
+      padding: 12px;
       border: 1px solid #ccc;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 1rem;
-    }
-    .controls .checkbox-group {
-      display: none;
-      align-items: center;
-      gap: 5px;
-      margin-top: 10px;
-    }
-    .controls .checkbox-group input {
-      width: auto;
-    }
-    .controls button {
       width: 100%;
-      padding: 12px 20px;
-      margin-top: 10px;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
     }
+    
+    input[type="number"]:focus,
+    select:focus {
+      outline: none;
+      border-color: #007bff;
+    }
+
     button {
       background-color: #007bff;
       color: #fff;
       border: none;
-      padding: 12px 20px;
-      border-radius: 4px;
+      padding: 12px 25px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 1.1rem;
       font-weight: bold;
-      transition: background-color 0.3s ease;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      width: 100%;
     }
+    
     button:hover {
       background-color: #0056b3;
+      transform: translateY(-2px);
     }
+
+    /* 結果テーブル */
     #result-container {
-      margin-top: 20px;
+      margin-top: 30px;
     }
+
     #result-table-container {
       overflow-x: auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 15px;
-      font-size: 0.8rem;
-      min-width: 300px;
       table-layout: fixed;
     }
+
     th, td {
-      padding: 6px;
+      padding: 12px 8px;
       text-align: center;
-      border: 1px solid #ddd;
-      word-break: break-all;
-    }
-    th {
-      background-color: #f8ffa;
-      font-weight: bold;
-      color: #495057;
-    }
-    .row-number-header {
-      cursor: pointer;
-      font-family: Arial, sans-serif;
-      font-size: 1.1em;
-    }
-    .re-gacha-cell {
-      line-height: 1.2;
-    }
-    .eyeball-text {
-      color: red;
-      font-weight: bold;
-    }
-    .path-cell {
-      background-color: #e6ffe6 !important;
-    }
-    #cellCount {
-      font-weight: bold;
-      margin-top: 10px;
+      border: 1px solid #e0e0e0;
+      word-break: break-word;
       font-size: 0.9rem;
-      display: none;
     }
-    .seed-counts p {
+    
+    th {
+      background-color: #f0f4f7;
+      color: #444;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+    
+    td {
+      background-color: #fff;
+    }
+
+    .row-number-header {
+      font-family: Arial, sans-serif;
       font-weight: bold;
+      width: 60px;
+    }
+
+    /* セルのハイライトとテキストスタイル */
+    .eyeball-text {
       color: #d9534f;
-      margin: 5px 0;
-    }
-    .path-values {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .path-values p {
       font-weight: bold;
-      color: #007bff;
-      margin: 5px 0;
     }
-    .path-next-10 {
-      font-size: 0.8rem;
-      margin: 5px 0;
-      white-space: pre-wrap;
+    
+    .re-gacha-cell {
+      line-height: 1.4;
     }
-    .guaranteed-eyeball-cell {
-      background-color: #ffe6e6 !important;
-      font-weight: bold;
-      color: #d9534f;
-    }
-    /* G1～G10用の着色クラス */
+
+    /* G列の着色 */
     .g-ten-pull-highlight {
-      background-color: #fffacd !important; /* 薄い黄色 */
+      background-color: #fffacd;
     }
-    /* G11～G21用の着色クラス */
-    .g-path-next-10 {
-      background-color: #f0f8ff !important; /* 薄い青 */
-    }
-    /* 列幅を均等に設定 */
-    th:first-child, td:first-child {
-      width: 10%;
-    }
-    th:nth-child(2), td:nth-child(2),
-    th:nth-child(3), td:nth-child(3),
-    th:nth-child(4), td:nth-child(4),
-    th:last-child, td:last-child {
-      width: 22.5%; /* (100 - 10) / 4 = 22.5% */
-    }
-    /* PC表示時のレイアウト */
-    @media (min-width: 768px) {
-      .controls {
-        flex-direction: row;
-        align-items: flex-end;
-        gap: 15px;
-      }
-      .controls button {
-        width: auto;
-        margin-top: 0;
-      }
-    }
-    #tenPullResult {
-      margin-top: 20px;
-    }
-    #tenPullResult h3 {
-      margin-bottom: 5px;
-    }
-    #tenPullResult p {
-      margin-bottom: 5px;
-      font-weight: bold;
-    }
-    #seedInfo {
-      display: none; /* 非表示 */
-    }
-    #guaranteedStatus {
-      display: none; /* 非表示 */
-    }
-    #tenPullGachaInfo {
-      display: none; /* 非表示 */
-    }
-    #extraEyeballInfo {
-      display: none; /* 非表示 */
-    }
+
   </style>
 </head>
 <body>
@@ -211,15 +158,14 @@
   <div class="container">
     <h1>イベロ</h1>
     <div class="input-group">
-      <div class="input-item">
-        <label for="gachaIdSelector">Gacha</label>
-        <select id="gachaIdSelector">
-          <option value="34">34: ハロウィン</option>
-          <option value="42" selected>42: 1.1億DL記念</option>
-        </select>
-      </div>
-
       <div class="controls">
+        <div class="input-item">
+          <label for="gachaIdSelector">Gacha</label>
+          <select id="gachaIdSelector">
+            <option value="34">34: ハロウィン</option>
+            <option value="42" selected>42: 1.1億DL記念</option>
+          </select>
+        </div>
         <div class="input-item">
           <label for="seedInput">SEED</label>
           <input type="number" id="seedInput" value="123456789">
@@ -228,25 +174,14 @@
           <label for="guaranteedRollsInput">最初の確定枠までのロール数</label>
           <input type="number" id="guaranteedRollsInput" value="30" min="1">
         </div>
-        <div class="input-item">
-          <div class="checkbox-group">
-            <input type="checkbox" id="reGachaDisplay" checked>
-            <label for="reGachaDisplay">再抽選表示</label>
-          </div>
+        <div class="input-item" style="display: flex; align-items: flex-end;">
           <button id="executeButton">更新</button>
         </div>
       </div>
     </div>
     
-    <div id="guaranteedStatus"></div>
-    <div id="extraEyeballInfo"></div>
-    <div id="tenPullGachaInfo"></div>
-    <div id="seedInfo"></div>
-    <div id="output"></div>
-
     <div id="result-container">
       <div id="result-table-container"></div>
-      <div id="cellCount"></div>
     </div>
   </div>
 
@@ -333,10 +268,7 @@
     const gachaIdSelector = document.getElementById('gachaIdSelector');
     const guaranteedRollsInput = document.getElementById('guaranteedRollsInput');
     const executeButton = document.getElementById('executeButton');
-    const reGachaDisplayCheckbox = document.getElementById('reGachaDisplay');
-    const output = document.getElementById('output');
     const resultTableContainer = document.getElementById('result-table-container');
-    const cellCountDisplay = document.getElementById('cellCount');
 
     executeButton.addEventListener('click', () => {
         runSimulationAndDisplay();
@@ -347,7 +279,6 @@
       const firstGuaranteedRolls = parseInt(guaranteedRollsInput.value, 10) || 30;
 
       if (isNaN(seedValue)) {
-        output.textContent = '有効な数値を入力してください。';
         return;
       }
 
@@ -365,13 +296,10 @@
       const master = gachaMaster[selectedGachaId];
 
       if (!gacha || !master) {
-        output.textContent = '無効なガチャIDです。';
         return;
       }
       
-      // 全セルの抽選結果を事前に計算して固定
       let items = new Array(300).fill(-1);
-      let rarities = new Array(300).fill(-1);
       let isEyeballCell = new Array(300).fill(false);
       let reGachaItems = new Array(300).fill("---");
       
@@ -406,7 +334,6 @@
         else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; }
         else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; }
         else { rarityId = 4; }
-        rarities[i] = rarityId;
 
         const itemInfo = master[rarityId];
         if (itemInfo.itemCounts > 0) {
@@ -427,21 +354,17 @@
                 const reGachaOffset = seedForReGacha % newDivisor;
                 const reGachaItemId = originalItemNoList[reGachaOffset];
                 
-                // 再抽選アイテムを表示するかどうかの判定ロジック
                 let showReGacha = false;
                 const prevItemIndex = i - 3;
                 const prevPrevItemIndex = i - 2;
 
                 if (items[i] !== -1) {
-                    // 3SEED前と再抽選前アイテムが一致するか判定
                     if (prevItemIndex >= 0 && items[i] === items[prevItemIndex]) {
                         showReGacha = true;
                     }
-                    // 3SEED前の再抽選後アイテムと再抽選前アイテムが一致するか判定
                     if (!showReGacha && prevItemIndex >= 0 && reGachaItems[prevItemIndex] !== "---" && items[i] === itemNameToId[reGachaItems[prevItemIndex]]) {
                         showReGacha = true;
                     }
-                    // 1SEED前が目玉の時の2SEED前の再抽選アイテムと再抽選前アイテムが一致するか判定
                     if (!showReGacha && prevPrevItemIndex >= 0 && isEyeballCell[i-1]) {
                         if (reGachaItems[prevPrevItemIndex] !== "---" && items[i] === itemNameToId[reGachaItems[prevPrevItemIndex]]) {
                             showReGacha = true;
@@ -449,7 +372,6 @@
                     }
                 }
                 
-                // 判定結果に基づいて再抽選アイテムを格納
                 if (showReGacha) {
                     reGachaItems[i] = itemNameMaster[reGachaItemId];
                 }
@@ -457,7 +379,6 @@
         }
       }
 
-      // G列の10連結果の抽選ロジック
       const tenPullResults = new Array(10).fill(null);
       const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls - 1 : -1;
       let remainingIndices = Array.from({length: 10}, (_, i) => i);
@@ -567,7 +488,6 @@
                 let classList = ['re-gacha-cell'];
                 let cellContent = "---";
 
-                // A, B, C列の表示
                 if (isEyeballCell[index]) {
                     const nextRollRow = Math.floor((index + 1) / 3) + 1;
                     const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3));
@@ -586,7 +506,6 @@
                 table += `<td class="${classList.join(' ')}">${cellContent}</td>`;
             }
             
-            // G列の表示
             let gCellClass = 're-gacha-cell';
             let gCellContent = '';
             if (r < 10) {
