@@ -54,13 +54,13 @@
       font-size: 1rem;
     }
     .controls .checkbox-group {
-        display: none;
-        align-items: center;
-        gap: 5px;
-        margin-top: 10px;
+      display: none;
+      align-items: center;
+      gap: 5px;
+      margin-top: 10px;
     }
     .controls .checkbox-group input {
-        width: auto;
+      width: auto;
     }
     .controls button {
       width: 100%;
@@ -96,7 +96,7 @@
       table-layout: fixed;
     }
     th, td {
-      padding: 6px; 
+      padding: 6px;
       text-align: center;
       border: 1px solid #ddd;
       word-break: break-all;
@@ -122,10 +122,10 @@
       background-color: #e6ffe6 !important;
     }
     #cellCount {
-        font-weight: bold;
-        margin-top: 10px;
-        font-size: 0.9rem;
-        display: none;
+      font-weight: bold;
+      margin-top: 10px;
+      font-size: 0.9rem;
+      display: none;
     }
     .seed-counts p {
       font-weight: bold;
@@ -133,109 +133,108 @@
       margin: 5px 0;
     }
     .path-values {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
     }
     .path-values p {
-        font-weight: bold;
-        color: #007bff;
-        margin: 5px 0;
+      font-weight: bold;
+      color: #007bff;
+      margin: 5px 0;
     }
     .path-next-10 {
-        font-size: 0.8rem;
-        margin: 5px 0;
-        white-space: pre-wrap;
+      font-size: 0.8rem;
+      margin: 5px 0;
+      white-space: pre-wrap;
     }
     .guaranteed-eyeball-cell {
-        background-color: #ffe6e6 !important;
-        font-weight: bold;
-        color: #d9534f;
+      background-color: #ffe6e6 !important;
+      font-weight: bold;
+      color: #d9534f;
     }
     /* G1～G10用の着色クラス */
     .g-ten-pull-highlight {
-        background-color: #fffacd !important; /* 薄い黄色 */
+      background-color: #fffacd !important; /* 薄い黄色 */
     }
     /* G11～G21用の着色クラス */
     .g-path-next-10 {
-        background-color: #f0f8ff !important; /* 薄い青 */
+      background-color: #f0f8ff !important; /* 薄い青 */
     }
     /* 列幅を均等に設定 */
     th:first-child, td:first-child {
-        width: 10%;
+      width: 10%;
     }
     th:nth-child(2), td:nth-child(2),
     th:nth-child(3), td:nth-child(3),
     th:nth-child(4), td:nth-child(4),
     th:last-child, td:last-child {
-        width: 22.5%; /* (100 - 10) / 4 = 22.5% */
+      width: 22.5%; /* (100 - 10) / 4 = 22.5% */
     }
     /* PC表示時のレイアウト */
     @media (min-width: 768px) {
-        .controls {
-            flex-direction: row;
-            align-items: flex-end;
-            gap: 15px;
-        }
-        .controls button {
-            width: auto;
-            margin-top: 0;
-        }
+      .controls {
+        flex-direction: row;
+        align-items: flex-end;
+        gap: 15px;
+      }
+      .controls button {
+        width: auto;
+        margin-top: 0;
+      }
     }
     #tenPullResult {
       margin-top: 20px;
     }
     #tenPullResult h3 {
-        margin-bottom: 5px;
+      margin-bottom: 5px;
     }
     #tenPullResult p {
-        margin-bottom: 5px;
-        font-weight: bold;
+      margin-bottom: 5px;
+      font-weight: bold;
     }
     #seedInfo {
-        display: none; /* 非表示 */
+      display: none; /* 非表示 */
     }
     #guaranteedStatus {
-        display: none; /* 非表示 */
+      display: none; /* 非表示 */
     }
     #tenPullGachaInfo {
       display: none; /* 非表示 */
     }
     #extraEyeballInfo {
-        display: none; /* 非表示 */
+      display: none; /* 非表示 */
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h1>イベロ</h<div class="input-item">
-  <label for="gachaIdSelector">Gacha</label>
-  <select id="gachaIdSelector">
-    <option value="34">34: ハロウィン</option>
-    <option value="42" selected>42: 1.1億DL記念</option>
-  </select>
-</div>
-
-    
-
-
-
-      </div>
+    <h1>イベロ</h1>
+    <div class="input-group">
       <div class="input-item">
-        <label for="seedInput">SEED</label>
-        <input type="number" id="seedInput" value="123456789">
+        <label for="gachaIdSelector">Gacha</label>
+        <select id="gachaIdSelector">
+          <option value="34">34: ハロウィン</option>
+          <option value="42" selected>42: 1.1億DL記念</option>
+        </select>
       </div>
-      <div class="input-item">
-        <label for="guaranteedRollsInput">最初の確定枠までのロール数</label>
-        <input type="number" id="guaranteedRollsInput" value="30" min="1">
-      </div>
-      <div class="input-item">
-        <div class="checkbox-group">
+
+      <div class="controls">
+        <div class="input-item">
+          <label for="seedInput">SEED</label>
+          <input type="number" id="seedInput" value="123456789">
+        </div>
+        <div class="input-item">
+          <label for="guaranteedRollsInput">最初の確定枠までのロール数</label>
+          <input type="number" id="guaranteedRollsInput" value="30" min="1">
+        </div>
+        <div class="input-item">
+          <div class="checkbox-group">
             <input type="checkbox" id="reGachaDisplay" checked>
             <label for="reGachaDisplay">再抽選表示</label>
+          </div>
+          <button id="executeButton">更新</button>
         </div>
-        <button id="executeButton">更新</button>
       </div>
     </div>
     
@@ -323,11 +322,11 @@
     };
     
     const rarityNames = {
-        '0': '通常',
-        '1': 'レア',
-        '2': '激レア',
-        '3': '超激レア',
-        '4': '伝説レア'
+      '0': '通常',
+      '1': 'レア',
+      '2': '激レア',
+      '3': '超激レア',
+      '4': '伝説レア'
     };
 
     const seedInput = document.getElementById('seedInput');
@@ -445,7 +444,7 @@
                     // 1SEED前が目玉の時の2SEED前の再抽選アイテムと再抽選前アイテムが一致するか判定
                     if (!showReGacha && prevPrevItemIndex >= 0 && isEyeballCell[i-1]) {
                         if (reGachaItems[prevPrevItemIndex] !== "---" && items[i] === itemNameToId[reGachaItems[prevPrevItemIndex]]) {
-                             showReGacha = true;
+                            showReGacha = true;
                         }
                     }
                 }
@@ -459,9 +458,9 @@
       }
 
       // G列の10連結果の抽選ロジック
-      const tenPullResults = new Array(11).fill(null);
-      const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls : -1;
-      let remainingIndices = Array.from({length: 10}, (_, i) => i + 1);
+      const tenPullResults = new Array(10).fill(null);
+      const guaranteedRoll = (firstGuaranteedRolls > 0 && firstGuaranteedRolls <= 10) ? firstGuaranteedRolls - 1 : -1;
+      let remainingIndices = Array.from({length: 10}, (_, i) => i);
       let currentSeedOffset = 0;
       let tenPullLastItemId = -1;
       
@@ -543,16 +542,16 @@
       const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextRollIndex % 3));
       const nextRollAddress = `${nextRollCol}${nextRollRow}`;
 
-      const originalG10Content = tenPullResults[10];
-      let newG10Display;
+      const originalG9Content = tenPullResults[9];
+      let newG9Display;
       
-      if (originalG10Content && originalG10Content.includes('目玉')) {
-        newG10Display = `<span class="eyeball-text">${originalG10Content}</span>`;
+      if (originalG9Content && originalG9Content.includes('目玉')) {
+        newG9Display = `<span class="eyeball-text">${originalG9Content}</span>`;
       } else {
-        newG10Display = originalG10Content;
+        newG9Display = originalG9Content;
       }
       
-      tenPullResults[10] = `${nextRollAddress}) ${newG10Display}`;
+      tenPullResults[9] = `${nextRollAddress}) ${newG9Display}`;
 
 
       createAndDisplayTable(items, isEyeballCell, guaranteedRollsInput.value, tenPullResults, reGachaItems);
@@ -576,10 +575,10 @@
                     cellContent = `<span class="eyeball-text">${nextRollAddress})目玉</span>`;
                 } else if (reGachaItems[index] !== "---") {
                      const nextIndex = index + 4;
-                    const nextRollRow = Math.floor((nextIndex) / 3) + 1;
-                    const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
-                    const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-                    cellContent = `${itemNameMaster[items[index]]}▼<br>${nextRollAddress})${reGachaItems[index]}`;
+                     const nextRollRow = Math.floor((nextIndex) / 3) + 1;
+                     const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
+                     const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+                     cellContent = `${itemNameMaster[items[index]]}▼<br>${nextRollAddress})${reGachaItems[index]}`;
                 } else {
                      cellContent = itemNameMaster[items[index]] || '---';
                 }
@@ -592,7 +591,7 @@
             let gCellContent = '';
             if (r < 10) {
                 gCellClass += ' g-ten-pull-highlight';
-                gCellContent = tenPullRows[r + 1] || '';
+                gCellContent = tenPullRows[r] || '';
                 if (gCellContent && gCellContent.includes('目玉')) {
                     gCellContent = `<span class="eyeball-text">${gCellContent}</span>`;
                 }
