@@ -180,11 +180,11 @@
              targetRate: 600,
              rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 },
              rarityItems: {
-                 '0': { itemCounts: 1, itemNo: [10] },
-                 '1': { itemCounts: 4, itemNo: [0, 3, 11, 12] },
-                 '2': { itemCounts: 4, itemNo: [2, 4, 5, 14] },
-                 '3': { itemCounts: 0, itemNo: [] },
-                 '4': { itemCounts: 0, itemNo: [] }
+                 '0': { itemNo: [10] },
+                 '1': { itemNo: [0, 3, 11, 12] },
+                 '2': { itemNo: [2, 4, 5, 14] },
+                 '3': { itemNo: [] },
+                 '4': { itemNo: [] }
              }
          },
          '42': {
@@ -192,11 +192,11 @@
              targetRate: 500,
              rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
              rarityItems: {
-                 '0': { itemCounts: 1, itemNo: [10] },
-                 '1': { itemCounts: 4, itemNo: [0, 3, 11, 12] },
-                 '2': { itemCounts: 4, itemNo: [2, 4, 5, 14] },
-                 '3': { itemCounts: 3, itemNo: [375, 381, 689] },
-                 '4': { itemCounts: 0, itemNo: [] }
+                 '0': { itemNo: [10] },
+                 '1': { itemNo: [0, 3, 11, 12] },
+                 '2': { itemNo: [2, 4, 5, 14] },
+                 '3': { itemNo: [375, 381, 689] },
+                 '4': { itemNo: [] }
              }
          }
      };
@@ -308,12 +308,13 @@
              rarities[i] = rarityId;
 
              const itemInfo = gacha.rarityItems[rarityId];
-             if (itemInfo.itemCounts > 0) {
-                 const itemOffset = xorshiftArray[itemSeedIndex] % itemInfo.itemCounts;
+             const itemCounts = itemInfo.itemNo.length;
+             if (itemCounts > 0) {
+                 const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts;
                  items[i] = itemInfo.itemNo[itemOffset];
              }
 
-             if (rarityId === 1 && itemInfo.itemCounts >= 2) {
+             if (rarityId === 1 && itemCounts >= 2) {
                  const reGachaSeedIndex = itemSeedIndex + 1;
                  if (reGachaSeedIndex < xorshiftArray.length) {
                      const originalItemNoList = [...itemInfo.itemNo];
@@ -327,7 +328,7 @@
                      const reGachaItemId = originalItemNoList[reGachaOffset];
                      reGachaItems[i] = itemMaster[reGachaItemId];
 
-                     let backOffset = 3; // 直前のアイテムを参照するためのオフセット(通常は3、連続レア被りは4、目玉セルが連続する場合はそれに応じて増加)
+                     let backOffset = 3; 
                      let tempIndex = i - 1;
                      while (tempIndex >= 0 && isEyeballCell[tempIndex]) {
                          backOffset += 1;
@@ -336,18 +337,18 @@
 
                      if (i >= backOffset) {
                       if(rarities[i] === 1){
-                         if(items[i] === items[i - backOffset]){ // 直前のアイテムと同じ場合
+                         if(items[i] === items[i - backOffset]){ 
                              showReGacha[i] = true;
                              eligibleForReGacha[i] = true;
                          }
-                         else if(items[i] === reGachaItems[i - backOffset - 1]){ // 直前の再抽選アイテムと同じ場合
-                             if(eligibleForReGacha[i - backOffset - 1]){ // 直前の再抽選が発生している場合
+                         else if(items[i] === reGachaItems[i - backOffset - 1]){ 
+                             if(eligibleForReGacha[i - backOffset - 1]){ 
                              showReGacha[i] = true;}
                          }
                       }
                      }
                      
-                     reGachaItems[i] = "---"; // 初期化
+                     reGachaItems[i] = "---"; 
                      if (forceReGachaMode || showReGacha[i]) {
                          reGachaItems[i] = itemMaster[reGachaItemId];
                      }
@@ -365,8 +366,7 @@
 
              if (isEyeballCell[currentCellIndex]) {
                  currentCellIndex += 1;
-             } else if (rarities[currentCellIndex] === 1 && reGachaItems[currentCellIndex] !== "---") {
-                 // reGachaItemsに値がある場合、再抽選と見なす
+             } else if (rarities[currentCellIndex] === 1 && lastActualItemId === items[currentCellIndex]) {
                  lastActualItemId = itemNameToId[reGachaItems[currentCellIndex]];
                  currentCellIndex += 4;
              } else {
@@ -377,7 +377,7 @@
          
          // 10連ガチャの結果を計算
          const tenPullResults = new Array(10).fill(null);
-         let tenPullSeedOffset = 9; // 10連ガチャの最初のロールのレアリティ判定はxorshiftArray[9]を使用
+         let tenPullSeedOffset = 9; 
          
          for (let i = 0; i < 10; i++) {
              if (i === firstGuaranteedRolls - 1) {
@@ -401,18 +401,19 @@
                  else { rarityId = 4; }
                  
                  const itemInfo = gacha.rarityItems[rarityId];
+                 const itemCounts = itemInfo.itemNo.length;
                  let currentItemId = -1;
                  let itemName = "---";
                  
-                 if (itemInfo.itemCounts > 0) {
-                     const itemOffset = xorshiftArray[itemSeedIndex] % itemInfo.itemCounts;
+                 if (itemCounts > 0) {
+                     const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts;
                      currentItemId = itemInfo.itemNo[itemOffset];
                      itemName = itemMaster[currentItemId] || "不明";
                  }
                  
                  let displayItemName = itemName;
                  
-                 if (rarityId === 1 && itemInfo.itemCounts >= 2 && i > 0) {
+                 if (rarityId === 1 && itemCounts >= 2 && i > 0) {
                      const prevIndex = (tenPullResults[i-1].includes("目玉")) ? i - 1 : i - 2;
                      let prevItemId;
                      if (tenPullResults[i-1].includes("▼")) {
