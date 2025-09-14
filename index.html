@@ -336,6 +336,9 @@
 
                     if (i >= backOffset) {
                     if(rarities[i] === 1){
+                        if(items[i] === items[i - 3]){ 
+                            eligibleForReGacha[i] = true;
+                        }
                         if(items[i] === items[i - backOffset]){ 
                             eligibleForReGacha[i] = true;
                         }
