@@ -166,6 +166,14 @@
 </div>
 
 <script>
+    
+    // URLからSEED値を取得して設定
+    const params = new URLSearchParams(window.location.search);
+    const urlSeed = params.get('seed');
+    if (urlSeed) {
+        document.getElementById('seedInput').value = urlSeed;
+    }
+    
     function xorshift32(seed) {
         let x = seed;
         x ^= x << 13;
@@ -173,31 +181,29 @@
         x ^= x << 15;
         return x >>> 0;
     }
+    
+    // --- ユーティリティ関数 ---
+    function getItemIdByName(name) {
+        for (const id in itemMaster) {
+            if (itemMaster[id] === name) {
+                return parseInt(id, 10);
+            }
+        }
+        return undefined;
+    }
 
     const gachaMaster = {
         '34': {
             name: 'ハロウィン',
             targetRate: 600,
             rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 },
-            rarityItems: {
-                '0': { itemNo: [10] },
-                '1': { itemNo: [0, 3, 11, 12] },
-                '2': { itemNo: [2, 4, 5, 14] },
-                '3': { itemNo: [] },
-                '4': { itemNo: [] }
-            }
+            rarityItems: { '0': [10], '1': [0, 3, 11, 12], '2': [2, 4, 5, 14], '3': [], '4': [] }
         },
         '42': {
             name: '1.1億DL記念',
             targetRate: 500,
             rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
-            rarityItems: {
-                '0': { itemNo: [10] },
-                '1': { itemNo: [0, 3, 11, 12] },
-                '2': { itemNo: [2, 4, 5, 14] },
-                '3': { itemNo: [375, 381, 689] },
-                '4': { itemNo: [] }
-            }
+            rarityItems: { '0': [10], '1': [0, 3, 11, 12], '2': [2, 4, 5, 14], '3': [375, 381, 689], '4': [] }
         }
     };
 
@@ -215,22 +221,6 @@
         375: "記念ネコ",
         381: "ねこ農家",
         689: "石の上にも10年ネコ"
-    };
-
-    const itemNameToId = {
-        "スピダ": 0,
-        "トレレ": 1,
-        "ネコボン": 2,
-        "ニャンピュ": 3,
-        "おかめ": 4,
-        "スニャ": 5,
-        "5千XP": 10,
-        "1万XP": 11,
-        "3万XP": 12,
-        "10万XP": 14,
-        "記念ネコ": 375,
-        "ねこ農家": 381,
-        "石の上にも10年ネコ": 689
     };
     
     const seedInput = document.getElementById('seedInput');
@@ -307,16 +297,16 @@
             rarities[i] = rarityId;
 
             const itemInfo = gacha.rarityItems[rarityId];
-            const itemCounts = itemInfo.itemNo.length;
+            const itemCounts = itemInfo.length;
             if (itemCounts > 0) {
                 const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts;
-                items[i] = itemInfo.itemNo[itemOffset];
+                items[i] = itemInfo[itemOffset];
             }
 
             if (rarityId === 1 && itemCounts >= 2) {
                 const reGachaSeedIndex = itemSeedIndex + 1;
                 if (reGachaSeedIndex < xorshiftArray.length) {
-                    const originalItemNoList = [...itemInfo.itemNo];
+                    const originalItemNoList = [...itemInfo];
                     const itemIndex = originalItemNoList.indexOf(items[i]);
                     if (itemIndex > -1) {
                         originalItemNoList.splice(itemIndex, 1);
@@ -342,12 +332,12 @@
                         if(items[i] === items[i - backOffset]){ 
                             eligibleForReGacha[i] = true;
                         }
-                        else if(items[i] === itemNameToId[reGachaItems[i - 1]]){ 
+                        else if(items[i] === getItemIdByName(reGachaItems[i - 1])){ 
                             if(eligibleForReGacha[i - backOffset - 1]){ 
                                 eligibleForReGacha[i] = true;
                             }
                         }
-                        else if(items[i] === itemNameToId[reGachaItems[i - backOffset - 1]]){ 
+                        else if(items[i] === getItemIdByName(reGachaItems[i - backOffset - 1])){ 
                             if(eligibleForReGacha[i - backOffset - 1]){ 
                                 eligibleForReGacha[i] = true;
                             }
@@ -374,7 +364,7 @@
             if (isEyeballCell[currentCellIndex]) {
                 currentCellIndex += 1;
             } else if (eligibleForReGacha[currentCellIndex] && lastActualItemId === items[currentCellIndex]) {
-                lastActualItemId = itemNameToId[reGachaItems[currentCellIndex]];
+                lastActualItemId = getItemIdByName(reGachaItems[currentCellIndex]);
                 currentCellIndex += 4;
             } else {
                 lastActualItemId = items[currentCellIndex];
@@ -408,13 +398,13 @@
                 else { rarityId = 4; }
                 
                 const itemInfo = gacha.rarityItems[rarityId];
-                const itemCounts = itemInfo.itemNo.length;
+                const itemCounts = itemInfo.length;
                 let currentItemId = -1;
                 let itemName = "---";
                 
                 if (itemCounts > 0) {
                     const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts;
-                    currentItemId = itemInfo.itemNo[itemOffset];
+                    currentItemId = itemInfo[itemOffset];
                     itemName = itemMaster[currentItemId] || "不明";
                 }
                 
@@ -425,14 +415,14 @@
                     let prevItemId;
                     if (tenPullResults[i-1].includes("▼")) {
                         const prevReGachaItemName = tenPullResults[i-1].split(")$")[1];
-                        prevItemId = itemNameToId[prevReGachaItemName];
+                        prevItemId = getItemIdByName(prevReGachaItemName);
                     } else {
-                        prevItemId = itemNameToId[tenPullResults[i-1].replace(/<br>/g, '').trim()];
+                        prevItemId = getItemIdByName(tenPullResults[i-1].replace(/<br>/g, '').trim());
                     }
 
                     if(prevItemId === currentItemId) {
                             const reGachaSeedIndex = itemSeedIndex + 1;
-                            const originalItemNoList = [...itemInfo.itemNo];
+                            const originalItemNoList = [...itemInfo];
                             const itemIndex = originalItemNoList.indexOf(currentItemId);
                             if (itemIndex > -1) {
                                 originalItemNoList.splice(itemIndex, 1);
@@ -455,7 +445,7 @@
             }
         }
         
-        // G列の最後のセルに次のSEEDアドレスを表示
+        // G列の10行目のセルに次のSEEDアドレスを表示
         const nextRollIndex = tenPullSeedOffset;
         const nextRollRow = Math.floor(nextRollIndex / 3) + 1;
         const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextRollIndex % 3));
@@ -465,11 +455,46 @@
         const newG9Display = `${nextRollAddress}) ${originalG9Content.replace(/<br>/g, '')}`;
         tenPullResults[9] = newG9Display;
 
-        output.innerHTML = '';
-        createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullResults, reGachaItems, selectedGachaId);
+        
+
+        // 単発Nロール後の10連に含まれる目玉数期待値の計算
+        const expectedEyebollsArray = [];
+        const numberArray = [];
+        for (let start = 1; start <= 10; start++) {
+            expectedEyebollsArray[start] = 0; // 初期化
+            numberArray.push("<br>単発" + (start) + "ロール後(seed" + (path[start]) + "～)の(目玉出現枠)及び個数:<br>");
+            for(let i = 0; i < 10; i++){
+                // path配列の範囲内であることを確認
+                if(path[start] + i >= path.length) break;
+                if(moduloArray[path[start] + i] < gacha.targetRate){
+                    expectedEyebollsArray[start]++;
+                    numberArray.push(" " + moduloArray[path[start] + i] + "■");
+                } else {
+                    numberArray.push(" " + moduloArray[path[start] + i]);
+                }
+            }
+
+            // 確定枠の考慮(startが4のときは確定枠が4から10までの6枠、startが9のときは確定枠が10のみ)
+            if(start <= firstGuaranteedRolls && firstGuaranteedRolls < start + 10){
+                expectedEyebollsArray[start] = expectedEyebollsArray[start] + 1; // 確定枠分を加算
+                numberArray.push((firstGuaranteedRolls - start) + "ロール目(確定枠)■");
+                if(moduloArray[path[10]] < gacha.targetRate){
+                    expectedEyebollsArray[start] = expectedEyebollsArray[start]  - 1; // 確定枠が目玉の場合、期待値から1を減算
+                }
+            }
+            
+            numberArray.push(" / " + expectedEyebollsArray[start] + "個<br>");
+        }
+        
+       // 表の上に確認用の表示
+        const confirmationString = `Seed: ${seedValue} | ガチャID: ${selectedGachaId} | 確定枠: ${firstGuaranteedRolls}回目${numberArray}`;
+        //output.innerHTML = confirmationString;
+
+        createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullResults, reGachaItems, selectedGachaId, expectedEyebollsArray);
+    
     }
     
-    function createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullRows, reGachaItems, gachaId) {
+    function createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray) {
         let table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>B</th><th>C</th><th>G</th></tr></thead><tbody>';
         const pathSet = new Set(path);
 
@@ -496,15 +521,15 @@
                     const nextRollAddress = `${nextRollCol}${nextRollRow}`;
                     
                     let reGachaItemName = reGachaItems[index];
-                    const reGachaItemId = itemNameToId[reGachaItemName];
-                    const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].itemNo.includes(reGachaItemId));
+                    const reGachaItemId = getItemIdByName(reGachaItemName);
+                    const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(reGachaItemId));
                     if (rarityId == 3) {
                         reGachaItemName = `<span class="eyeball-text">${reGachaItemName}</span>`;
                     }
                     cellContent = `${itemMaster[items[index]]}▼<br>${nextRollAddress})${reGachaItemName}`;
                 } else {
                     cellContent = itemMaster[items[index]] ? itemMaster[items[index]] : '---';
-                    const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].itemNo.includes(items[index]));
+                    const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(items[index]));
                     if (rarityId == 3) {
                         cellContent = `<span class="eyeball-text">${cellContent}</span>`;
                     }
@@ -523,14 +548,16 @@
                     gCellContent = `<span class="eyeball-text">${gCellContent}</span>`;
                 } else if (gCellContent) {
                     const extractedItemName = gCellContent.split(') ').pop().split('▼')[0].trim();
-                    const extractedItemId = itemNameToId[extractedItemName];
+                    const extractedItemId = getItemIdByName(extractedItemName);
                     if (extractedItemId !== undefined) {
-                        const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].itemNo.includes(extractedItemId));
+                        const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(extractedItemId));
                         if (rarityId == 3) {
                             gCellContent = `<span class="eyeball-text">${gCellContent}</span>`;
                         }
                     }
                 }
+            } else if (r >= 10 && r < 20) {
+                gCellContent = expectedEyebollsArray[r - 9] // 11行目以降は---
             } else {
                 gCellContent = '';
             }
