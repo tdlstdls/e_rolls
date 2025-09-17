@@ -453,6 +453,8 @@
         const tenPullResults = new Array(10).fill(null); // G列の1行目～10行目のセルに表示する内容
         let tenPullSeedOffset = 9; // 10連ガチャの最初のロールのSEEDオフセット(0始まり)
         let nextIndexAfterTenPull = 0; // 10連ガチャ後の次のロールのインデックス
+        let currentItemId = -1; // 現在のアイテムID
+        let prevItemId = -1; // 前のロールのアイテムID
         
         for (let i = 0; i < 10; i++) { // 10連ガチャの各ロール
             if (i === firstGuaranteedRolls - 1) { // 確定枠
@@ -481,8 +483,6 @@
                 
                 const itemInfo = gacha.rarityItems[rarityId]; // レアリティに応じたアイテムリスト
                 const itemCounts = itemInfo.length; // アイテムの数
-                let currentItemId = -1; // 現在のアイテムID
-                let prevItemId = -1; // 前のロールのアイテムID
                 let itemName = "---"; // アイテム名の初期化
                 
                 if (itemCounts > 0) { // アイテムが存在する場合
@@ -492,11 +492,12 @@
                 }
                 
                 let displayItemName = itemName; // 表示用のアイテム名
-                
+
                 // リガチャ（レア被り再抽選）の処理
                 if (rarityId === 1 && itemCounts >= 2 && i > 0) { // レアリティ1でアイテムが2つ以上、かつ最初のロールでない場合
                     //const prevIndex = (tenPullResults[i - 1].includes("目玉")) ? i - 1 : i - 2; // 前のロールのインデックスを決定
                     
+                    /*
                     // リガチャ処理の直前に prevItemId を更新
                     if (tenPullResults[i - 1].includes("<br>")) { // 前のロールがリガチャであった場合
                     const prevReGachaItemName = tenPullResults[i - 1].split("<br>")[1].trim(); // リガチャ後のアイテム名を抽出
@@ -504,6 +505,7 @@
                     } else {
                     prevItemId = getItemIdByName(tenPullResults[i - 1].replace(/<br>/g, '').trim()); // アイテムIDを取得
                     }
+                    */
 
                     if (prevItemId === currentItemId) { // 前のロールと同じアイテムが出た場合
                         const reGachaSeedIndex = itemSeedIndex + 1; // リガチャのSEEDインデックス
@@ -519,11 +521,14 @@
                         
                         // "<br>" を使用して再抽選前のアイテム名と再抽選後のアイテム名の両方を表示
                         displayItemName = `${itemName}<br>${itemMaster[reGachaItemId]}`; // 表示用のアイテム名を更新
+                        prevItemId = reGachaItemId; // prevItemIdをリガチャ後のアイテムIDに更新
                         tenPullSeedOffset += 3; // リガチャ分のSEEDオフセットを追加
                     } else {
+                        prevItemId = currentItemId; // prevItemIdを現在のアイテムIDに更新
                         tenPullSeedOffset += 2; // 通常のSEEDオフセットを追加
                     }
                 } else {
+                    prevItemId = currentItemId; // prevItemIdを現在のアイテムIDに更新
                     tenPullSeedOffset += 2; // 通常のSEEDオフセットを追加
                 }
                 
