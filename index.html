@@ -535,9 +535,18 @@
         const nextRollRow = Math.floor(nextRollIndex / 3) + 1; // 次のロールの行番号
         const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((nextRollIndex) % 3)); // 次のロールの列文字
         const nextRollAddress = `${nextRollCol}${nextRollRow}`; // 次のロールのアドレス
-
         const originalG9Content = tenPullResults[9] || '---'; // 元のG列10行目の内容
-        const newG9Display = `<a href="?seed=${xorshiftArray[nextRollIndex - 1]}" class="featuredItem-text">${nextRollAddress}) ${originalG9Content.replace(/<br>/g, '')}</a>`; // 新しい表示内容
+
+        let newG9Display;
+        if (originalG9Content.includes('<br>')) {
+            // 改行が含まれる場合：再抽選前のアイテムと、再抽選後のアイテムのリンクを分ける
+            const originalItem = originalG9Content.split('<br>')[0].trim();
+            const reGachaItem = originalG9Content.split('<br>')[1].trim();
+            newG9Display = `${originalItem}<br><a href="?seed=${xorshiftArray[nextRollIndex - 1]}" class="re-gacha-cell">${nextRollAddress}) ${reGachaItem}</a>`;
+        } else {
+            // 改行が含まれない場合：元のアイテム名全体をリンクにする
+            newG9Display = `<a href="?seed=${xorshiftArray[nextRollIndex - 1]}" class="re-gacha-cell">${nextRollAddress}) ${originalG9Content.trim()}</a>`;
+        }
         tenPullResults[9] = newG9Display; // G列10行目の内容を更新
 
         
@@ -619,9 +628,6 @@
                     const reGachaItemId = getItemIdByName(reGachaItemName); // アイテムIDを取得
                     // レアリティをチェックして目玉と同じスタイル（赤フォント）を適用
                     const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(reGachaItemId));
-                    if (rarityId == 3) { // レアリティ3の場合
-                        reGachaItemName = `<span class="featuredItem-text">${reGachaItemName}</span>`; // 目玉と同じスタイルを適用
-                    }
                     cellContent = `<a href="?seed=${xorshiftArray[index + 2]}">${itemMaster[items[index]]}</a>
                     <br><a href="?seed=${xorshiftArray[index + 3]}">${nextRollAddress})${reGachaItemName}</a>`; // リガチャセルの内容
                 } else { // 通常セルの処理
@@ -629,7 +635,7 @@
                     // レアリティをチェックして目玉と同じスタイル（赤フォント）を適用
                     const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(items[index]));
                     if (rarityId == 3) { // レアリティ3の場合
-                        cellContent = `<span class="featuredItem-text"><a href="?seed=${xorshiftArray[index + 3]}>${cellContent}</a></span>`; // 目玉と同じスタイルを適用
+                        cellContent = `<span class="featuredItem-text">${cellContent}</span>`; // 目玉と同じスタイルを適用
                     }
                 }
 
@@ -645,7 +651,7 @@
                 if (gCellContent && gCellContent.includes('目玉')) {
                     gCellContent = `<span class="featuredItem-text">${gCellContent}</span>`;
                 } else if (gCellContent) {
-                    const extractedItemName = gCellContent.split(') ').pop().split('▼')[0].trim();
+                    const extractedItemName = gCellContent;
                     const extractedItemId = getItemIdByName(extractedItemName);
                     if (extractedItemId !== undefined) {
                         const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(extractedItemId));
