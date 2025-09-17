@@ -451,6 +451,7 @@
         
         // 10連ガチャの結果を計算
         const tenPullResults = new Array(10).fill(null); // G列の1行目～10行目のセルに表示する内容
+        const isFeaturedItemCellForTenPull = new Array(300).fill(false); // 10連ガチャで目玉が出たセルを記録
         let tenPullSeedOffset = 9; // 10連ガチャの最初のロールのSEEDオフセット(0始まり)
         let nextIndexAfterTenPull = 0; // 10連ガチャ後の次のロールのインデックス
         let currentItemId = -1; // 現在のアイテムID
@@ -459,7 +460,7 @@
         for (let i = 0; i < 10; i++) { // 10連ガチャの各ロール
             if (i === firstGuaranteedRolls - 1) { // 確定枠
                 tenPullResults[i] = '目玉(確定)'; // 確定枠を表示
-                isfeaturedItemCell[tenPullSeedOffset] = true; // 確定枠のセルを目玉セルとしてマーク
+                isFeaturedItemCellForTenPull[tenPullSeedOffset] = true; // 確定枠のセルを目玉セルとしてマーク
                 tenPullSeedOffset = tenPullSeedOffset - 1; // 次のロールのSEEDオフセットを更新
                 continue; // 確定枠の場合は他の処理をスキップ
             }
@@ -467,7 +468,7 @@
             const isHit = (moduloArray[i] < gacha.featuredItemRate); // 目玉が出るかどうかを判定
             if (isHit) { // 目玉が出た場合
                 tenPullResults[i] = '目玉'; // 目玉を表示
-                isfeaturedItemCell[tenPullSeedOffset] = true; // 目玉セルとしてマーク
+                isFeaturedItemCellForTenPull[tenPullSeedOffset] = true; // 目玉セルとしてマーク
                 nextIndexAfterTenPull = nextIndexAfterTenPull + 1; // 10連ガチャ後の次のロールのインデックスを更新
             } else { // 目玉が出なかった場合
                 const raritySeedIndex = tenPullSeedOffset + 1; // レアリティ判定のSEEDインデックス
