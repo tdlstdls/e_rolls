@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イベロ</title>
+    <title>イベントガチャロールズ</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.4;
-            padding: 15px;
-            max-width: 1200px;
+            line-height: 1.2;
+            padding: 10px;
+            max-width: 800px;
             margin: 0 auto;
             background-color: #f4f7f9;
             color: #333;
-            font-size: 14px;
+            font-size: 10px;
         }
         .container {
             background: #fff;
@@ -23,32 +23,58 @@
         }
         h1 {
             color: #004085;
-            font-size: 0.8rem;
+            font-size: 1rem;
             border-bottom: 1px solid #e9ecef;
             padding-bottom: 3px;
             margin-top: 0;
             text-align: center;
         }
+
         .controls {
             display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 5px;
-            margin-bottom: 25px;
+            flex-direction: column; /* これがキー */
+            gap: 10px; /* 行間の隙間 */
+            margin-bottom: 15px;
             padding: 6px;
             background-color: #f9fbfd;
             border-radius: 4px;
         }
-        .input-item {
-            flex: 1 1 200px;
+
+        /* 各行のスタイル */
+        .row {
             display: flex;
-            flex-direction: column;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 5px;
         }
+
+        /* 各入力アイテムのスタイル */
+        .input-item {
+            flex: 1 1 150px;
+            display: flex;
+            flex-direction: row;
+        }
+
+        /* SEED入力項目専用のスタイル */
+        .input-item-seed {
+            display: flex;
+            flex-direction: row;
+        }
+        
+        /* SEED入力窓とボタンを横並びにするためのスタイル */
+        .seed-input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex 1 1 200px; /* 最小幅を200pxに設定 */
+        }
+
         label {
             font-weight: 600;
             margin-bottom: 3px;
             color: #555;
         }
+
         input[type="number"],
         select {
             padding: 3px;
@@ -64,22 +90,26 @@
             outline: none;
             border-color: #007bff;
         }
+
+        /* ボタンのスタイルを調整 */
         button {
+            flex-shrink: 0;
+            width: auto;
+            padding: 5px 10px;
             background-color: #007bff;
             color: #fff;
             border: none;
-            padding: 3px 3px;
             border-radius: 3px;
             cursor: pointer;
             font-size: 0.8rem;
             font-weight: bold;
             transition: background-color 0.3s ease, transform 0.2s ease;
-            width: 100%;
         }
         button:hover {
             background-color: #0056b3;
             transform: translateY(-2px);
         }
+
         #result-container {
             margin-top: 25px;
         }
@@ -95,7 +125,7 @@
             table-layout: fixed;
         }
         th, td {
-            padding: 5px 5px;
+            padding: 5px;
             text-align: center;
             border: 1px solid #e0e0e0;
             word-break: break-word;
@@ -117,7 +147,7 @@
             width: 40px;
             cursor: pointer;
         }
-        .eyeball-text {
+        .featuredItem-text {
             color: #d9534f;
             font-weight: bold;
         }
@@ -130,31 +160,47 @@
         .g-ten-pull-highlight {
             background-color: #fffacd;
         }
+
+        /* すべてのリンクの色を黒に設定し、下線をなくす */
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        #gachaIdSelector {width: 200px; /* ここに任意の幅を指定 */}
+        #guaranteedRollsInput {width: 50px; /* ここに任意の幅を指定 */}
+
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>イベロ</h1>
+    <h1>イベントガチャロールズ</h1>
     <div class="input-group">
         <div class="controls">
-            <div class="input-item">
-                <label for="gachaIdSelector">Gacha</label>
-                <select id="gachaIdSelector">
-                    <option value="34">34: ハロウィン</option>
-                    <option value="42" selected>42: 1.1億DL記念</option>
-                </select>
+            <div class="row">
+                <div class="input-item">
+                    <label for="gachaIdSelector">Gacha</label>
+                    <select id="gachaIdSelector">
+                        <option value="34">34: ハロウィン</option>
+                        <option value="42" selected>42: 1.1億DL記念</option>
+                    </select>
+                </div>
+                <div class="input-item">
+                    <label for="guaranteedRollsInput">next guaranteed</label>
+                    <select id="guaranteedRollsInput">
+                    </select>
+                </div>
             </div>
-            <div class="input-item">
-                <label for="seedInput">SEED</label>
-                <input type="number" id="seedInput" value="123456789">
-            </div>
-            <div class="input-item">
-                <label for="guaranteedRollsInput">最初の確定枠までのロール数</label>
-                <input type="number" id="guaranteedRollsInput" value="30" min="1">
-            </div>
-            <div class="input-item" style="display: flex; align-items: flex-end;">
-                <button id="executeButton">更新</button>
+
+            <div class="row">
+                <div class="input-item-seed">
+                    <label for="seedInput">SEED</label>
+                    <div class="seed-input-group">
+                        <input type="number" id="seedInput" value="123456789">
+                        <button id="executeButton">更新</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -166,6 +212,10 @@
 </div>
 
 <script>
+    // グローバル変数として宣言
+    let path = [];
+    let xorshiftArray = [];
+    let moduloArray = [];
     
     // URLからSEED値を取得して設定
     const params = new URLSearchParams(window.location.search);
@@ -195,13 +245,15 @@
     const gachaMaster = {
         '34': {
             name: 'ハロウィン',
-            targetRate: 600,
+            featuredItemRate: 600,
+            featuredItemStock: 5,
             rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 },
             rarityItems: { '0': [10], '1': [0, 3, 11, 12], '2': [2, 4, 5, 14], '3': [], '4': [] }
         },
         '42': {
             name: '1.1億DL記念',
-            targetRate: 500,
+            featuredItemRate: 500,
+            featuredItemStock: 5,
             rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
             rarityItems: { '0': [10], '1': [0, 3, 11, 12], '2': [2, 4, 5, 14], '3': [375, 381, 689], '4': [] }
         }
@@ -232,10 +284,34 @@
 
     let forceReGachaMode = false;
 
+    // ガチャの種類が変更されたときに実行
+    gachaIdSelector.addEventListener('change', () => {
+        runSimulationAndDisplay();
+    });
+
+    // 更新ボタンがクリックされたときに実行
     executeButton.addEventListener('click', () => {
         runSimulationAndDisplay();
     });
 
+    // next guaranteedの選択肢を1から30まで動的に生成
+    const rollSelect = document.getElementById('guaranteedRollsInput');
+    for (let i = 1; i <= 30; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        rollSelect.appendChild(option);
+    }
+    guaranteedRollsInput.value = '30';
+    guaranteedRollsInput.addEventListener('change', () => {
+        runSimulationAndDisplay();
+    });
+
+
+
+
+
+    // シミュレーションを実行して結果を表示する関数
     function runSimulationAndDisplay() {
         const seedValue = parseInt(seedInput.value, 10);
         const selectedGachaId = gachaIdSelector.value;
@@ -251,9 +327,10 @@
             output.textContent = '無効なガチャIDです。';
             return;
         }
-
-        let xorshiftArray = [];
-        let moduloArray = [];
+        
+        // グローバル変数に値を設定
+        xorshiftArray = [];
+        moduloArray = [];
         let currentSeed = seedValue;
         for (let i = 0; i < 1000; i++) {
             currentSeed = xorshift32(currentSeed);
@@ -272,7 +349,7 @@
 
         let items = new Array(300).fill(-1);
         let rarities = new Array(300).fill(-1);
-        let isEyeballCell = new Array(300).fill(false);
+        let isfeaturedItemCell = new Array(300).fill(false);
         let reGachaItems = new Array(300).fill("---");
         let eligibleForReGacha = new Array(300).fill(false);
         
@@ -283,8 +360,8 @@
 
             if (itemSeedIndex >= xorshiftArray.length) continue;
 
-            const isHit = (moduloArray[hitSeedIndex] < gacha.targetRate);
-            isEyeballCell[i] = isHit;
+            const isHit = (moduloArray[hitSeedIndex] < gacha.featuredItemRate);
+            isfeaturedItemCell[i] = isHit;
 
             if (isHit) continue;
             
@@ -319,7 +396,7 @@
 
                     let backOffset = 3; 
                     let tempIndex = i - 1;
-                    while (tempIndex >= 0 && isEyeballCell[tempIndex]) {
+                    while (tempIndex >= 0 && isfeaturedItemCell[tempIndex]) {
                         backOffset += 1;
                         tempIndex -= 1;
                     }
@@ -354,14 +431,14 @@
         }
 
         // 抽選経路の追跡と着色
-        let path = [];
+        path = [];
         let currentCellIndex = 0;
         let lastActualItemId = -1; 
         while (currentCellIndex < 300) {
-            if (currentCellIndex >= isEyeballCell.length) break;
+            if (currentCellIndex >= isfeaturedItemCell.length) break;
             path.push(currentCellIndex);
 
-            if (isEyeballCell[currentCellIndex]) {
+            if (isfeaturedItemCell[currentCellIndex]) {
                 currentCellIndex += 1;
             } else if (eligibleForReGacha[currentCellIndex] && lastActualItemId === items[currentCellIndex]) {
                 lastActualItemId = getItemIdByName(reGachaItems[currentCellIndex]);
@@ -373,72 +450,80 @@
         }
         
         // 10連ガチャの結果を計算
-        const tenPullResults = new Array(10).fill(null);
-        let tenPullSeedOffset = 9; 
+        const tenPullResults = new Array(10).fill(null); // G列の1行目～10行目のセルに表示する内容
+        let tenPullSeedOffset = 9; // 10連ガチャの最初のロールのSEEDオフセット(0始まり)
+        let nextIndexAfterTenPull = 0; // 10連ガチャ後の次のロールのインデックス
         
-        for (let i = 0; i < 10; i++) {
-            if (i === firstGuaranteedRolls - 1) {
-                tenPullResults[i] = '目玉(確定)';
-                tenPullSeedOffset = tenPullSeedOffset -1;
-                continue;
+        for (let i = 0; i < 10; i++) { // 10連ガチャの各ロール
+            if (i === firstGuaranteedRolls - 1) { // 確定枠
+                tenPullResults[i] = '目玉(確定)'; // 確定枠を表示
+                isfeaturedItemCell[tenPullSeedOffset] = true; // 確定枠のセルを目玉セルとしてマーク
+                tenPullSeedOffset = tenPullSeedOffset - 1; // 次のロールのSEEDオフセットを更新
+                continue; // 確定枠の場合は他の処理をスキップ
             }
 
-            const isHit = (moduloArray[i] < gacha.targetRate);
-            if (isHit) {
-                tenPullResults[i] = '目玉';
-            } else {
-                const raritySeedIndex = tenPullSeedOffset + 1;
-                const itemSeedIndex = tenPullSeedOffset + 2;
+            const isHit = (moduloArray[i] < gacha.featuredItemRate); // 目玉が出るかどうかを判定
+            if (isHit) { // 目玉が出た場合
+                tenPullResults[i] = '目玉'; // 目玉を表示
+                isfeaturedItemCell[tenPullSeedOffset] = true; // 目玉セルとしてマーク
+                nextIndexAfterTenPull = nextIndexAfterTenPull + 1; // 10連ガチャ後の次のロールのインデックスを更新
+            } else { // 目玉が出なかった場合
+                const raritySeedIndex = tenPullSeedOffset + 1; // レアリティ判定のSEEDインデックス
+                const itemSeedIndex = tenPullSeedOffset + 2; // アイテム選択のSEEDインデックス
                 
-                let rarityId;
-                if (moduloArray[raritySeedIndex] < thresholds['0']) { rarityId = 0; }
-                else if (moduloArray[raritySeedIndex] < thresholds['1']) { rarityId = 1; }
-                else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; }
-                else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; }
-                else { rarityId = 4; }
+                let rarityId; // レアリティIDを決定
+                if (moduloArray[raritySeedIndex] < thresholds['0']) { rarityId = 0; } // レアリティ0
+                else if (moduloArray[raritySeedIndex] < thresholds['1']) { rarityId = 1; } // レアリティ1
+                else if (moduloArray[raritySeedIndex] < thresholds['2']) { rarityId = 2; } // レアリティ2
+                else if (moduloArray[raritySeedIndex] < thresholds['3']) { rarityId = 3; } // レアリティ3
+                else { rarityId = 4; } // レアリティ4
                 
-                const itemInfo = gacha.rarityItems[rarityId];
-                const itemCounts = itemInfo.length;
-                let currentItemId = -1;
-                let itemName = "---";
+                const itemInfo = gacha.rarityItems[rarityId]; // レアリティに応じたアイテムリスト
+                const itemCounts = itemInfo.length; // アイテムの数
+                let currentItemId = -1; // 現在のアイテムID
+                let prevItemId = -1; // 前のロールのアイテムID
+                let itemName = "---"; // アイテム名の初期化
                 
-                if (itemCounts > 0) {
-                    const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts;
-                    currentItemId = itemInfo[itemOffset];
-                    itemName = itemMaster[currentItemId] || "不明";
+                if (itemCounts > 0) { // アイテムが存在する場合
+                    const itemOffset = xorshiftArray[itemSeedIndex] % itemCounts; // アイテムのオフセットを決定
+                    currentItemId = itemInfo[itemOffset]; // 現在のアイテムIDを設定
+                    itemName = itemMaster[currentItemId] || "不明"; // アイテム名を取得
                 }
                 
-                let displayItemName = itemName;
+                let displayItemName = itemName; // 表示用のアイテム名
                 
-                if (rarityId === 1 && itemCounts >= 2 && i > 0) {
-                    const prevIndex = (tenPullResults[i-1].includes("目玉")) ? i - 1 : i - 2;
-                    let prevItemId;
-                    if (tenPullResults[i-1].includes("▼")) {
-                        const prevReGachaItemName = tenPullResults[i-1].split(")$")[1];
-                        prevItemId = getItemIdByName(prevReGachaItemName);
+                // リガチャ（レア被り再抽選）の処理
+                if (rarityId === 1 && itemCounts >= 2 && i > 0) { // レアリティ1でアイテムが2つ以上、かつ最初のロールでない場合
+                    //const prevIndex = (tenPullResults[i - 1].includes("目玉")) ? i - 1 : i - 2; // 前のロールのインデックスを決定
+                    
+                    // リガチャ処理の直前に prevItemId を更新
+                    if (tenPullResults[i - 1].includes("<br>")) { // 前のロールがリガチャであった場合
+                    const prevReGachaItemName = tenPullResults[i - 1].split("<br>")[1].trim(); // リガチャ後のアイテム名を抽出
+                    prevItemId = getItemIdByName(prevReGachaItemName); // アイテムIDを取得
                     } else {
-                        prevItemId = getItemIdByName(tenPullResults[i-1].replace(/<br>/g, '').trim());
+                    prevItemId = getItemIdByName(tenPullResults[i - 1].replace(/<br>/g, '').trim()); // アイテムIDを取得
                     }
 
-                    if(prevItemId === currentItemId) {
-                            const reGachaSeedIndex = itemSeedIndex + 1;
-                            const originalItemNoList = [...itemInfo];
-                            const itemIndex = originalItemNoList.indexOf(currentItemId);
-                            if (itemIndex > -1) {
-                                originalItemNoList.splice(itemIndex, 1);
-                            }
-                            const newDivisor = originalItemNoList.length;
-                            const seedForReGacha = xorshiftArray[reGachaSeedIndex];
-                            const reGachaOffset = seedForReGacha % newDivisor;
-                            const reGachaItemId = originalItemNoList[reGachaOffset];
-                            displayItemName = `${itemName}▼<br>${itemMaster[reGachaItemId]}`;
-                            tenPullSeedOffset += 3;
+                    if (prevItemId === currentItemId) { // 前のロールと同じアイテムが出た場合
+                        const reGachaSeedIndex = itemSeedIndex + 1; // リガチャのSEEDインデックス
+                        const originalItemNoList = [...itemInfo]; // 元のアイテムリストをコピー
+                        const itemIndex = originalItemNoList.indexOf(currentItemId); // 現在のアイテムのインデックスを取得
+                        if (itemIndex > -1) { // アイテムがリストに存在する場合
+                            originalItemNoList.splice(itemIndex, 1); // 重複を避けるためにリストから削除
+                        }
+                        const newDivisor = originalItemNoList.length; // 新しい除数を設定
+                        const seedForReGacha = xorshiftArray[reGachaSeedIndex]; // リガチャ用のSEEDを取得
+                        const reGachaOffset = seedForReGacha % newDivisor; // リガチャのオフセットを決定
+                        const reGachaItemId = originalItemNoList[reGachaOffset]; // リガチャで選ばれたアイテムID
+                        
+                        // "<br>" を使用して再抽選前のアイテム名と再抽選後のアイテム名の両方を表示
+                        displayItemName = `${itemName}<br>${itemMaster[reGachaItemId]}`; // 表示用のアイテム名を更新
+                        tenPullSeedOffset += 3; // リガチャ分のSEEDオフセットを追加
                     } else {
-                            tenPullSeedOffset += 2;
+                        tenPullSeedOffset += 2; // 通常のSEEDオフセットを追加
                     }
-
                 } else {
-                    tenPullSeedOffset += 2;
+                    tenPullSeedOffset += 2; // 通常のSEEDオフセットを追加
                 }
                 
                 tenPullResults[i] = displayItemName;
@@ -446,14 +531,14 @@
         }
         
         // G列の10行目のセルに次のSEEDアドレスを表示
-        const nextRollIndex = tenPullSeedOffset;
-        const nextRollRow = Math.floor(nextRollIndex / 3) + 1;
-        const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextRollIndex % 3));
-        const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+        const nextRollIndex = tenPullSeedOffset + 1; // 10連ガチャ後の次のロールのインデックス
+        const nextRollRow = Math.floor(nextRollIndex / 3) + 1; // 次のロールの行番号
+        const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((nextRollIndex) % 3)); // 次のロールの列文字
+        const nextRollAddress = `${nextRollCol}${nextRollRow}`; // 次のロールのアドレス
 
-        const originalG9Content = tenPullResults[9] || '---';
-        const newG9Display = `${nextRollAddress}) ${originalG9Content.replace(/<br>/g, '')}`;
-        tenPullResults[9] = newG9Display;
+        const originalG9Content = tenPullResults[9] || '---'; // 元のG列10行目の内容
+        const newG9Display = `<a href="?seed=${xorshiftArray[nextRollIndex - 1]}" class="featuredItem-text">${nextRollAddress}) ${originalG9Content.replace(/<br>/g, '')}</a>`; // 新しい表示内容
+        tenPullResults[9] = newG9Display; // G列10行目の内容を更新
 
         
 
@@ -466,7 +551,7 @@
             for(let i = 0; i < 10; i++){
                 // path配列の範囲内であることを確認
                 if(path[start] + i >= path.length) break;
-                if(moduloArray[path[start] + i] < gacha.targetRate){
+                if(moduloArray[path[start] + i] < gacha.featuredItemRate){
                     expectedEyebollsArray[start]++;
                     numberArray.push(" " + moduloArray[path[start] + i] + "■");
                 } else {
@@ -478,7 +563,7 @@
             if(start <= firstGuaranteedRolls && firstGuaranteedRolls < start + 10){
                 expectedEyebollsArray[start] = expectedEyebollsArray[start] + 1; // 確定枠分を加算
                 numberArray.push((firstGuaranteedRolls - start) + "ロール目(確定枠)■");
-                if(moduloArray[path[10]] < gacha.targetRate){
+                if(moduloArray[path[10]] < gacha.featuredItemRate){
                     expectedEyebollsArray[start] = expectedEyebollsArray[start]  - 1; // 確定枠が目玉の場合、期待値から1を減算
                 }
             }
@@ -487,55 +572,68 @@
         }
         
        // 表の上に確認用の表示
-        const confirmationString = `Seed: ${seedValue} | ガチャID: ${selectedGachaId} | 確定枠: ${firstGuaranteedRolls}回目${numberArray}`;
-        //output.innerHTML = confirmationString;
+       const confirmationString = `Seed: ${seedValue} | ガチャID: ${selectedGachaId} | 確定枠: ${firstGuaranteedRolls}回目${numberArray}`;
+       //output.innerHTML = confirmationString;
 
-        createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullResults, reGachaItems, selectedGachaId, expectedEyebollsArray);
+        // 結果の表を作成して表示
+        createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullResults, reGachaItems, selectedGachaId, expectedEyebollsArray);
     
+        // URLのクエリパラメータを更新
+        const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?seed=${seedValue}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
     }
     
-    function createAndDisplayTable(items, rarities, isEyeballCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray) {
+
+
+
+    // 結果の表を作成して表示する関数
+    function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray) {
         let table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>B</th><th>C</th><th>G</th></tr></thead><tbody>';
         const pathSet = new Set(path);
 
+        // 各行を生成
         for (let r = 0; r < 100; r++) {
-            table += `<tr><td>${r + 1}</td>`;
-            for (let c = 0; c < 3; c++) {
-                const index = r * 3 + c;
-                let classList = ['re-gacha-cell'];
-                let cellContent = "---";
+            table += `<tr><td>${r + 1}</td>`; // 行番号セルの追加
+            for (let c = 0; c < 3; c++) { // A, B, C列のセルを生成
+                const index = r * 3 + c; // セルのインデックス
+                if (index >= items.length) break; // インデックスが範囲外の場合は終了
+                let classList = ['re-gacha-cell']; // セルの基本クラス
+                let cellContent = "---"; // セルの内容初期化
                 
-                if (pathSet.has(index)) {
-                    classList.push('path-cell');
+                if (pathSet.has(index)) { // 抽選経路に含まれるセルの処理
+                    classList.push('path-cell'); // 抽選経路セルのクラスを追加
                 }
 
-                if (isEyeballCell[index]) {
-                    const nextRollRow = Math.floor((index + 1) / 3) + 1;
-                    const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3));
-                    const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-                    cellContent = `<span class="eyeball-text">${nextRollAddress})目玉</span>`;
-                } else if (reGachaItems[index] !== "---") {
-                    const nextIndex = index + 4;
-                    const nextRollRow = Math.floor((nextIndex) / 3) + 1;
-                    const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
-                    const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+                if (isfeaturedItemCell[index]) { // 目玉セルの処理
+                    const nextRollRow = Math.floor((index + 1) / 3) + 1; // 次のセルの行番号
+                    const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3)); // 次のセルの列文字
+                    const nextRollAddress = `${nextRollCol}${nextRollRow}`; // 次のセルのアドレス
+                    cellContent = `<a href="?seed=${xorshiftArray[index]}" class="featuredItem-text">${nextRollAddress})目玉</a>`; // 目玉セルの内容
+                } else if (reGachaItems[index] !== "---") { // リガチャセルの処理
+                    const nextIndex = index + 4; // 次のセルのインデックス
+                    const nextRollRow = Math.floor((nextIndex) / 3) + 1; // 次のセルの行番号
+                    const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3)); // 次のセルの列文字
+                    const nextRollAddress = `${nextRollCol}${nextRollRow}`; // 次のセルのアドレス
                     
-                    let reGachaItemName = reGachaItems[index];
-                    const reGachaItemId = getItemIdByName(reGachaItemName);
+                    let reGachaItemName = reGachaItems[index]; // リガチャアイテム名
+                    const reGachaItemId = getItemIdByName(reGachaItemName); // アイテムIDを取得
+                    // レアリティをチェックして目玉と同じスタイル（赤フォント）を適用
                     const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(reGachaItemId));
-                    if (rarityId == 3) {
-                        reGachaItemName = `<span class="eyeball-text">${reGachaItemName}</span>`;
+                    if (rarityId == 3) { // レアリティ3の場合
+                        reGachaItemName = `<span class="featuredItem-text">${reGachaItemName}</span>`; // 目玉と同じスタイルを適用
                     }
-                    cellContent = `${itemMaster[items[index]]}▼<br>${nextRollAddress})${reGachaItemName}`;
-                } else {
-                    cellContent = itemMaster[items[index]] ? itemMaster[items[index]] : '---';
+                    cellContent = `<a href="?seed=${xorshiftArray[index + 2]}">${itemMaster[items[index]]}</a>
+                    <br><a href="?seed=${xorshiftArray[index + 3]}">${nextRollAddress})${reGachaItemName}</a>`; // リガチャセルの内容
+                } else { // 通常セルの処理
+                    cellContent = itemMaster[items[index]] ? `<a href="?seed=${xorshiftArray[index + 2]}">${itemMaster[items[index]]}</a>` : '---'; // 通常セルの内容
+                    // レアリティをチェックして目玉と同じスタイル（赤フォント）を適用
                     const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(items[index]));
-                    if (rarityId == 3) {
-                        cellContent = `<span class="eyeball-text">${cellContent}</span>`;
+                    if (rarityId == 3) { // レアリティ3の場合
+                        cellContent = `<span class="featuredItem-text"><a href="?seed=${xorshiftArray[index + 3]}>${cellContent}</a></span>`; // 目玉と同じスタイルを適用
                     }
                 }
 
-                table += `<td class="${classList.join(' ')}">${cellContent}</td>`;
+                table += `<td class="${classList.join(' ')}">${cellContent}</td>`; // セルを追加
             }
             
             let gCellClass = 're-gacha-cell';
@@ -545,14 +643,14 @@
                 gCellContent = tenPullRows[r] || '';
                 
                 if (gCellContent && gCellContent.includes('目玉')) {
-                    gCellContent = `<span class="eyeball-text">${gCellContent}</span>`;
+                    gCellContent = `<span class="featuredItem-text">${gCellContent}</span>`;
                 } else if (gCellContent) {
                     const extractedItemName = gCellContent.split(') ').pop().split('▼')[0].trim();
                     const extractedItemId = getItemIdByName(extractedItemName);
                     if (extractedItemId !== undefined) {
                         const rarityId = Object.keys(gachaMaster[gachaId].rarityItems).find(key => gachaMaster[gachaId].rarityItems[key].includes(extractedItemId));
                         if (rarityId == 3) {
-                            gCellContent = `<span class="eyeball-text">${gCellContent}</span>`;
+                            gCellContent = `<span class="featuredItem-text">${gCellContent}</span>`;
                         }
                     }
                 }
@@ -569,15 +667,10 @@
         table += '</tbody></table>';
         resultTableContainer.innerHTML = table;
 
-        const rowNumberHeader = document.querySelector('.row-number-header');
-        if (rowNumberHeader) {
-            rowNumberHeader.addEventListener('click', () => {
-                forceReGachaMode = !forceReGachaMode;
-                runSimulationAndDisplay();
-            });
-        }
+
     }
 
+    // 初期表示
     runSimulationAndDisplay();
 </script>
 </body>
