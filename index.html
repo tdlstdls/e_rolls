@@ -70,7 +70,7 @@
             display: flex;
             align-items: center;
             gap: 5px;
-            flex 1 1 200px; /* 最小幅を200pxに設定 */
+            flex: 1 1 200px; /* 最小幅を200pxに設定 */
         }
 
 
@@ -177,8 +177,8 @@
         }
 
 
-        #gachaIdSelector {width: 200px; /* ここに任意の幅を指定 */}
-        #guaranteedRollsInput {width: 50px; /* ここに任意の幅を指定 */}
+        #gachaIdSelector {width: 150px; /* ここに任意の幅を指定 */}
+        #guaranteedRollsInput {width: 75px; /* ここに任意の幅を指定 */}
 
 
     </style>
@@ -194,8 +194,8 @@
                 <div class="input-item">
                     <label for="gachaIdSelector">Gacha</label>
                     <select id="gachaIdSelector">
-                        <option value="34">34: ハロウィン</option>
-                        <option value="42" selected>42: 1.1億DL記念</option>
+                        <option value="34">ハロウィン</option>
+                        <option value="42" selected>1.1億DL記念</option>
                     </select>
                 </div>
                 <div class="input-item">
@@ -314,17 +314,26 @@
 
     // next guaranteedの選択肢を1から30まで動的に生成
     const rollSelect = document.getElementById('guaranteedRollsInput');
+
+    // 「未設定」オプションを作成
+    const unsetValue = 'none'; // または '-1' など
+    const unsetOption = document.createElement('option');
+    unsetOption.value = unsetValue;
+    unsetOption.textContent = '未設定';
+    rollSelect.appendChild(unsetOption);
+
+    // 1から30までのオプションを生成
     for (let i = 1; i <= 30; i++) {
         const option = document.createElement('option');
         option.value = i;
         option.textContent = i;
         rollSelect.appendChild(option);
     }
-    guaranteedRollsInput.value = '30';
+
+    guaranteedRollsInput.value = unsetValue;
     guaranteedRollsInput.addEventListener('change', () => {
         runSimulationAndDisplay();
     });
-
 
     // シミュレーションを実行して結果を表示する関数
     function runSimulationAndDisplay() {
@@ -495,11 +504,10 @@
             if(isFeaturedItemCellForTenPull[i]){continue;} // 確定枠の場合は他の処理をスキップ
             const isHit = (moduloArray[tenPullSeedOffset] < gacha.featuredItemRate); // 目玉が出るかどうかを判定
             if (isHit) { // 目玉が出た場合
-                tenPullResults[tenPullSeedOffset] = '目玉'; // 目玉を表示
-                isFeaturedItemCellForTenPull[tenPullSeedOffset] = true; // 目玉セルとしてマーク
-                nextIndexAfterTenPull = nextIndexAfterTenPull + 1; // 10連ガチャ後の次のロールのインデックスを更新
+                tenPullResults[i] = '目玉'; // 目玉を表示
+                isFeaturedItemCellForTenPull[i] = true; // 目玉セルとしてマーク
             }
-            tenPullSeedOffset = tenPullSeedOffset + 1;
+            tenPullSeedOffset = tenPullSeedOffset + 1; // 10連ガチャ後の次のロールのインデックスを更新
         }
 
         // 10連ガチャの目玉以外のアイテムの決定
