@@ -297,8 +297,6 @@
     const executeButton = document.getElementById('executeButton');
     const output = document.getElementById('output');
     const resultTableContainer = document.getElementById('result-table-container');
-
-
     let forceReGachaMode = false;
 
 
@@ -326,14 +324,6 @@
     guaranteedRollsInput.addEventListener('change', () => {
         runSimulationAndDisplay();
     });
-
-
-
-
-
-
-
-
 
 
     // シミュレーションを実行して結果を表示する関数
@@ -598,9 +588,6 @@
         tenPullResults[9] = newG9Display; // G列10行目の内容を更新
 
 
-       
-
-
         // 単発Nロール後の10連に含まれる目玉数期待値の計算
         const expectedEyebollsArray = [];
         const numberArray = [];
@@ -618,8 +605,7 @@
                 }
             }
 
-
-            // 確定枠の考慮(startが4のときは確定枠が4から10までの6枠、startが9のときは確定枠が10のみ)
+            // 確定枠の考慮(たとえばstartが4のときは確定枠が4から10までの6枠、startが9のときは確定枠が10のみ)
             if(start <= firstGuaranteedRolls && firstGuaranteedRolls < start + 10){
                 expectedEyebollsArray[start] = expectedEyebollsArray[start] + 1; // 確定枠分を加算
                 numberArray.push((firstGuaranteedRolls - start) + "ロール目(確定枠)■");
@@ -643,12 +629,12 @@
         const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?seed=${seedValue}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
     }
-   
 
-
-
-
-
+    // forceReGachaModeを切り替える関数
+    function toggleReGachaMode() {
+        forceReGachaMode = !forceReGachaMode;
+        runSimulationAndDisplay(); // シミュレーションを再実行して表を更新
+    }
 
     // 結果の表を作成して表示する関数
     function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray) {
@@ -668,7 +654,6 @@
                 if (pathSet.has(index)) { // 抽選経路に含まれるセルの処理
                     classList.push('path-cell'); // 抽選経路セルのクラスを追加
                 }
-
 
                 if (isfeaturedItemCell[index]) { // 目玉セルの処理
                     const nextRollRow = Math.floor((index + 1) / 3) + 1; // 次のセルの行番号
@@ -695,7 +680,6 @@
                         cellContent = `<span class="featuredItem-text">${cellContent}</span>`; // 目玉と同じスタイルを適用
                     }
                 }
-
 
                 table += `<td class="${classList.join(' ')}">${cellContent}</td>`; // セルを追加
             }
@@ -732,14 +716,16 @@
         table += '</tbody></table>';
         resultTableContainer.innerHTML = table;
 
-
-
+        // クリックで再抽選後アイテム強制表示を切り替え
+        const rowHeaderCell = document.querySelector('th.row-number-header');
+        rowHeaderCell.textContent = forceReGachaMode ? '☑' : '❐';
+        rowHeaderCell.addEventListener('click', toggleReGachaMode);
 
     }
 
-
     // 初期表示
     runSimulationAndDisplay();
+
 </script>
 </body>
 </html>
