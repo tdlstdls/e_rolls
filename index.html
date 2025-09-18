@@ -853,10 +853,12 @@
                         const nextRollAddress = `${nextRollCol}${nextRollRow}`;
 
                         // 進行経路上のセル。再抽選を考慮してリンクを生成。
-                        if (reRolledIndicesOnPath.has(visualIndex)) {
+                        const showReGachaOnPath = (forceReGachaMode && reGachaItems[dataIndex] !== "---") || reRolledIndicesOnPath.has(visualIndex);
+                        if (showReGachaOnPath) {
                             let reGachaItemName = reGachaItems[dataIndex];
                             const reGachaItemId = itemNameMap[reGachaItemName];
-                            cellContent = `${itemMaster[items[dataIndex]].name}<br><a href="?seed=${xorshiftArray[dataIndex + 2]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${reGachaItemId}${compParamForLink}">${nextRollAddress})${reGachaItemName}</a>`;
+                            const originalItemName = itemMaster[items[dataIndex]] ? itemMaster[items[dataIndex]].name : "不明";
+                            cellContent = `${originalItemName}<br><a href="?seed=${xorshiftArray[dataIndex + 2]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${reGachaItemId}${compParamForLink}">${nextRollAddress})${reGachaItemName}</a>`;
                         } else {
                             const currentItemId = items[dataIndex];
                             cellContent = itemMaster[currentItemId] ? `<a href="?seed=${xorshiftArray[dataIndex + 1]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${currentItemId}${compParamForLink}">${itemMaster[currentItemId].name}</a>` : '---';
@@ -875,9 +877,10 @@
                         const dataIndex = r * 2 + c;
                         if (dataIndex < items.length) {
                             const prevDataIndex = dataIndex - 2;
-                            const isReRoll = dataIndex >= 2 && rarities[dataIndex] === 1 && items[dataIndex] === items[prevDataIndex] && canReRollRarity1;
+                            const isReRoll = dataIndex >= 2 && rarities[dataIndex] === 1 && items[dataIndex] === items[prevDataIndex] && canReRollRarity1; // This logic is flawed for off-path
+                            const showReGachaOffPath = (forceReGachaMode && reGachaItems[dataIndex] !== "---") || isReRoll;
 
-                            if (isReRoll) {
+                            if (showReGachaOffPath && reGachaItems[dataIndex] !== "---") {
                                 // 再抽選あり
                                 const nextDataIndex = dataIndex + 3;
                                 const next_r = Math.floor(nextDataIndex / 2);
@@ -953,14 +956,15 @@
                             const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3));
                             const nextRollAddress = `${nextRollCol}${nextRollRow}`;
                             cellContent = `<a href="?seed=${xorshiftArray[index]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}${compParamForLink}" class="featuredItem-text">${nextRollAddress})目玉</a>`;
-                        } else if (reRolledIndicesOnPath.has(index)) {
+                        } else if ((forceReGachaMode && reGachaItems[index] !== "---") || reRolledIndicesOnPath.has(index)) {
                             const nextIndex = index + 4; // not comp: 4 seeds consumed
                             const nextRollRow = Math.floor((nextIndex) / 3) + 1;
                             const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
                             const nextRollAddress = `${nextRollCol}${nextRollRow}`;
                             let reGachaItemName = reGachaItems[index];
                             const reGachaItemId = itemNameMap[reGachaItemName];
-                            cellContent = `${itemMaster[items[index]].name}<br><a href="?seed=${xorshiftArray[index + reGachaSeedOffsetForLink]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${reGachaItemId}${compParamForLink}">${nextRollAddress})${reGachaItemName}</a>`;
+                            const originalItemName = itemMaster[items[index]] ? itemMaster[items[index]].name : "不明";
+                            cellContent = `${originalItemName}<br><a href="?seed=${xorshiftArray[index + reGachaSeedOffsetForLink]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${reGachaItemId}${compParamForLink}">${nextRollAddress})${reGachaItemName}</a>`;
                         } else {
                             const currentItemId = items[index];
                             cellContent = itemMaster[currentItemId] ? `<a href="?seed=${xorshiftArray[index + seedOffsetForLink]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}&lr=${currentItemId}${compParamForLink}">${itemMaster[currentItemId].name}</a>` : '---';
@@ -980,6 +984,15 @@
                             const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3));
                             const nextRollAddress = `${nextRollCol}${nextRollRow}`;
                             cellContent = `<a href="?seed=${xorshiftArray[index]}" class="featuredItem-text">${nextRollAddress})目玉</a>`;
+                        } else if (forceReGachaMode && reGachaItems[index] !== "---") {
+                            const nextIndex = index + 4;
+                            const nextRollRow = Math.floor((nextIndex) / 3) + 1;
+                            const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
+                            const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+                            let reGachaItemName = reGachaItems[index];
+                            const reGachaItemId = itemNameMap[reGachaItemName];
+                            const originalItemName = itemMaster[items[index]] ? itemMaster[items[index]].name : "不明";
+                            cellContent = `${originalItemName}<br><a href="?seed=${xorshiftArray[index + reGachaSeedOffsetForLink]}&lr=${reGachaItemId}">${nextRollAddress})${reGachaItemName}</a>`;
                         } else {
                             // For non-path cells, we cannot determine re-rolls, so just show the base item.
                             const currentItemId = items[index];
