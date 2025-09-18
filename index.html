@@ -247,7 +247,6 @@
 
     const itemMaster = {
         0: { name: "スピダ", rarity: 1 },
-        1: { name: "トレレ", rarity: 1 }, // 他のレアアイテムに合わせてレアリティ1と設定
         2: { name: "ネコボン", rarity: 2 },
         3: { name: "ニャンピュ", rarity: 1 },
         4: { name: "おかめ", rarity: 2 },
@@ -304,7 +303,7 @@
     setupGachaRarityItems();
 
     // 目玉残数ドロップダウンを生成する関数
-    function populateFeaturedStockInput() {
+    function populateFeaturedStockInput(preferredValue = 'none') {
         const selectedGachaId = gachaIdSelector.value;
         const gacha = gachaMaster[selectedGachaId];
         const stock = gacha.featuredItemStock;
@@ -326,9 +325,9 @@
             featuredStockInput.appendChild(option);
         }
 
-        // URLパラメータがあれば値を設定、なければデフォルト
-        if (urlFeaturedStock && featuredStockInput.querySelector(`option[value="${urlFeaturedStock}"]`)) {
-            featuredStockInput.value = urlFeaturedStock;
+        // 渡された値を優先して設定し、それが無効なら「-」にする
+        if (preferredValue && preferredValue !== 'none' && featuredStockInput.querySelector(`option[value="${preferredValue}"]`)) {
+            featuredStockInput.value = preferredValue;
         } else {
             featuredStockInput.value = 'none';
         }
@@ -336,7 +335,8 @@
 
     // ガチャ選択が変更されたときのイベントリスナー
     gachaIdSelector.addEventListener('change', () => {
-        populateFeaturedStockInput(); // 目玉残数ドロップダウンを更新
+        const currentValue = featuredStockInput.value; // 現在の選択値を保持
+        populateFeaturedStockInput(currentValue); // 目玉残数ドロップダウンを更新し、現在の値を復元しようと試みる
         runSimulationAndDisplay(); // シミュレーションを再実行
     });
 
@@ -373,7 +373,7 @@
     });
 
     // 目玉残数ドロップダウンの初期化とイベントリスナー設定
-    populateFeaturedStockInput();
+    populateFeaturedStockInput(urlFeaturedStock);
     featuredStockInput.addEventListener('change', () => {
         runSimulationAndDisplay();
     });
@@ -645,6 +645,10 @@
             seedOffset += seedsForThisRoll;
         }
 
+        const initialStockForUrl = featuredStockLimitStr === 'none' ? gacha.featuredItemStock : parseInt(featuredStockLimitStr, 10);
+        const featuredItemsDrawnInTenPull = isFeaturedSlot.filter(Boolean).length;
+        const stockAfterTenPull = Math.max(0, initialStockForUrl - featuredItemsDrawnInTenPull);
+
         const nextRollIndex = seedOffset; // 10連ガチャ後の次のシードインデックス
         const nextRollRow = Math.floor(nextRollIndex / 3) + 1; // 次のロールの行番号
         const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((nextRollIndex) % 3)); // 次のロールの列文字
@@ -659,15 +663,17 @@
             nextGuaranteedForTenPull += 30;
         }
 
+        const tenPullLinkHref = `href="?seed=${xorshiftArray[nextRollIndex - 1]}&ng=${nextGuaranteedForTenPull}&fs=${stockAfterTenPull}"`;
+
         if (originalG9Content.includes('<br>')) { // 10連の最後が再抽選だった場合
             const originalItem = originalG9Content.split('<br>')[0].trim(); // 元のアイテム
             const reGachaItem = originalG9Content.split('<br>')[1].trim(); // 再抽選後のアイテム
-            newG9Display = `${originalItem}<br><a href="?seed=${xorshiftArray[nextRollIndex - 1]}&ng=${nextGuaranteedForTenPull}" class="re-gacha-cell">${nextRollAddress}) ${reGachaItem}</a>`; // 再抽選後のアイテムに次のシードへのリンクを付与
+            newG9Display = `${originalItem}<br><a ${tenPullLinkHref} class="re-gacha-cell">${nextRollAddress}) ${reGachaItem}</a>`;
         } else {
             if (tenPullRarities[9] === 3) {
-                newG9Display = `<a href="?seed=${xorshiftArray[nextRollIndex - 1]}&ng=${nextGuaranteedForTenPull}" class="re-gacha-cell"><span class="featuredItem-text">${nextRollAddress}) ${originalG9Content.trim()}</span></a>`;
+                newG9Display = `<a ${tenPullLinkHref} class="re-gacha-cell"><span class="featuredItem-text">${nextRollAddress}) ${originalG9Content.trim()}</span></a>`;
             } else {
-                newG9Display = `<a href="?seed=${xorshiftArray[nextRollIndex - 1]}&ng=${nextGuaranteedForTenPull}" class="re-gacha-cell">${nextRollAddress}) ${originalG9Content.trim()}</a>`;
+                newG9Display = `<a ${tenPullLinkHref} class="re-gacha-cell">${nextRollAddress}) ${originalG9Content.trim()}</a>`;
             }
         }
         tenPullResults[9] = newG9Display;
