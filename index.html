@@ -229,20 +229,16 @@
             name: 'ハロウィン', // ガチャ名
             featuredItemRate: 600,
             featuredItemStock: 5,
-            rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 }
+            rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 },
+            pool: [0, 2, 3, 4, 5, 10, 11, 12, 14]
         },
         '42': {
             name: '1.1億DL記念',
             featuredItemRate: 500, // 目玉アイテムの排出率 (10000分率)
             featuredItemStock: 5,
-            rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 }
+            rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
+            pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 375, 381, 689]
         }
-    };
-
-    // 各ガチャで排出されるアイテムの全リスト
-    const gachaPools = {
-        '34': [0, 2, 3, 4, 5, 10, 11, 12, 14],
-        '42': [0, 2, 3, 4, 5, 10, 11, 12, 14, 375, 381, 689],
     };
 
     const itemMaster = {
@@ -267,9 +263,10 @@
     
     // gachaMasterにrarityItemsを自動で設定する関数
     function setupGachaRarityItems() {
-        for (const gachaId in gachaPools) {
-            if (gachaMaster[gachaId]) {
-                const pool = gachaPools[gachaId];
+        for (const gachaId in gachaMaster) {
+            const gacha = gachaMaster[gachaId];
+            if (gacha && gacha.pool) {
+                const pool = gacha.pool;
                 const rarityItems = { '0': [], '1': [], '2': [], '3': [], '4': [] };
 
                 for (const itemId of pool) {
@@ -284,7 +281,7 @@
                     rarityItems[rarity].sort((a, b) => a - b);
                 }
 
-                gachaMaster[gachaId].rarityItems = rarityItems;
+                gacha.rarityItems = rarityItems;
             }
         }
     }
@@ -707,7 +704,7 @@
         //const confirmationString = `Seed: ${seedValue} | ガチャID: ${selectedGachaId} | 確定枠: ${firstGuaranteedRolls}回目${numberArray}`;
         //output.innerHTML = confirmationString;
 
-        createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullResults, reGachaItems, selectedGachaId, expectedEyebollsArray, firstGuaranteedRolls); // テーブルを生成して表示
+        createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullResults, reGachaItems, selectedGachaId, expectedEyebollsArray, firstGuaranteedRolls, initialStockForUrl); // テーブルを生成して表示
     
         // URLのクエリパラメータを更新
         const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?seed=${seedValue}&ng=${guaranteedRollsInput.value}&fs=${featuredStockInput.value}`; // 新しいURLを生成
@@ -719,7 +716,7 @@
         runSimulationAndDisplay();
     }
 
-    function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray, currentGuaranteedRolls) { // 結果をテーブルとして描画する関数
+    function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedEyebollsArray, currentGuaranteedRolls, initialStockForUrl) { // 結果をテーブルとして描画する関数
         let table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>B</th><th>C</th><th>G</th></tr></thead><tbody>'; // テーブルのヘッダー部分
         const pathSet = new Set(path); // 経路の検索を高速化するためにSetに変換
 
@@ -734,17 +731,27 @@
                 
                 if (pathSet.has(index)) {
                     classList.push('path-cell'); // 経路上のセルは背景色を変更
-                    const pathPosition = path.indexOf(index) + 1; // 経路上の何番目かを取得
-                    let nextGuaranteed = currentGuaranteedRolls - pathPosition; // 次の確定枠までの残り回数を計算
+                    const pathPosition = path.indexOf(index); // 0-based index in path
+                    let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1); // 次の確定枠までの残り回数を計算
                     if (nextGuaranteed <= 0) { // 0以下になったら30を足す
                         nextGuaranteed += 30;
                     }
+
+                    // このロールを含めた、ここまでの目玉獲得数を計算
+                    let featuredItemsDrawnUpTo = 0;
+                    for (let i = 0; i <= pathPosition; i++) {
+                        const pIndex = path[i];
+                        if (isfeaturedItemCell[pIndex]) {
+                            featuredItemsDrawnUpTo++;
+                        }
+                    }
+                    const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredItemsDrawnUpTo);
 
                     if (isfeaturedItemCell[index]) {
                         const nextRollRow = Math.floor((index + 1) / 3) + 1;
                         const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((index + 1) % 3));
                         const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-                        cellContent = `<a href="?seed=${xorshiftArray[index]}&ng=${nextGuaranteed}" class="featuredItem-text">${nextRollAddress})目玉</a>`; // 目玉アイテムの表示と次のシードへのリンク
+                        cellContent = `<a href="?seed=${xorshiftArray[index]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}" class="featuredItem-text">${nextRollAddress})目玉</a>`; // 目玉アイテムの表示と次のシードへのリンク
                     } else if (reGachaItems[index] !== "---") {
                         const nextIndex = index + 4;
                         const nextRollRow = Math.floor((nextIndex) / 3) + 1;
@@ -754,16 +761,20 @@
                         let reGachaItemName = reGachaItems[index];
                         // const reGachaItemId = itemNameMap[reGachaItemName]; // この行は直接使われていないため不要
                         cellContent = `${itemMaster[items[index]].name} <!-- 元のアイテム -->
-                        <br><a href="?seed=${xorshiftArray[index + 3]}&ng=${nextGuaranteed}">${nextRollAddress})${reGachaItemName}</a>`; // 再抽選アイテム
+                        <br><a href="?seed=${xorshiftArray[index + 3]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}">${nextRollAddress})${reGachaItemName}</a>`; // 再抽選アイテム
                     } else {
-                        const nextIndex = index + 3;
-                        const nextGuaranteed = currentGuaranteedRolls - pathPosition;
-                        const correctedGuaranteed = nextGuaranteed <= 0 ? nextGuaranteed + 30 : nextGuaranteed;
-                        cellContent = itemMaster[items[index]] ? `<a href="?seed=${xorshiftArray[index + 2]}&ng=${correctedGuaranteed}">${itemMaster[items[index]].name}</a>` : '---';
+                        cellContent = itemMaster[items[index]] ? `<a href="?seed=${xorshiftArray[index + 2]}&ng=${nextGuaranteed}&fs=${stockAfterThisRoll}">${itemMaster[items[index]].name}</a>` : '---';
                         const rarityId = items[index] in itemMaster ? itemMaster[items[index]].rarity : -1;
                         if (rarityId === 3) {
                             cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
                         }
+                    }
+
+                    // 確定枠の場合、表示にプレフィックスを追加
+                    const currentRollNumber = pathPosition + 1;
+                    if (currentRollNumber === currentGuaranteedRolls) {
+                        const prefix = `<span class="featuredItem-text">目玉(確定)/</span>`;
+                        cellContent = prefix + cellContent;
                     }
                 } else {
                     // Pathに該当しない場合、ngクエリパラメータを付けずにリンクを生成
