@@ -645,8 +645,7 @@
 
             if (isFeaturedSlot[i]) {
                 tenPullResults[i] = (i === firstGuaranteedRolls - 1 && !isFeaturedComplete) ? '目玉(確定)' : '目玉';
-                prevItemId = -1; // 目玉は再抽選チェーンをリセット
-                continue;
+                continue; // 目玉は再抽選の判定に影響せず、次のスロットへ
             }
 
             // --- 目玉ではなかったスロットの処理 ---
