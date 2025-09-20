@@ -179,6 +179,9 @@
         .path-cell {
             background-color: #e6ffe6 !important;
         }
+        .path-cell-milestone {
+            background-color: #c8e6c9 !important; /* 少し濃いめの緑 */
+        }
         .g-ten-pull-highlight {
             background-color: #fffacd;
         }
@@ -978,9 +981,16 @@
                     let classList = ['re-gacha-cell'];
                     let cellContent = "---";
                     if (pathSet.has(visualIndex)) {
-                        classList.push('path-cell');
                         const dataIndex = visualToDataMap.get(visualIndex);
                         const pathPosition = path.indexOf(visualIndex);
+
+                        const currentRollNumber = pathPosition + 1;
+                        if (currentRollNumber > 0 && currentRollNumber % 10 === 0) {
+                            classList.push('path-cell-milestone');
+                        } else {
+                            classList.push('path-cell');
+                        }
+
                         let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
                         if (nextGuaranteed <= 0) nextGuaranteed += 30;
                         const stockAfterThisRoll = 0;
