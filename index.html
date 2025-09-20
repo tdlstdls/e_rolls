@@ -9,7 +9,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.2;
             padding: 5px;
-            max-width: 800px;
+            max-width: 750px;
             margin: 0 auto;
             background-color: #f4f7f9;
             color: #333;
@@ -187,8 +187,8 @@
             text-decoration: none;
         }
         #gachaIdSelector { width: 150px; }
-        #guaranteedRollsInput { width: 75px; }
-        #featuredStockInput { width: 75px; }
+        #guaranteedRollsInput { width: px; }
+        #featuredStockInput { width: px; }
     </style>
 </head>
 <body>
@@ -634,7 +634,7 @@
 
                 if (isfeaturedItemCell[dataIndex]) { // 目玉が出た場合
                     dataIndex += 1; // 乱数を1つ消費
-                    lastActualItemId = -1; // 目玉は再抽選の連鎖をリセットする
+                    // lastActualItemId をリセットしないことで、目玉をまたいだ再抽選を可能にする
                 } else if (isReRoll) { // 再抽選が発生した場合
                     reRolledIndicesOnPath.add(visualIndex);
                     lastActualItemId = reGachaItemIds[dataIndex];
@@ -707,7 +707,7 @@
         for (let i = 0; i < 10; i++) {
             if (isFeaturedSlot[i]) { // その枠が目玉なら
                 tenPullResults[i] = (i === guaranteedSlotIndex && !isFeaturedComplete) ? '目玉(確定)' : '目玉';
-                prevItemId = -1; // 目玉は再抽選の連鎖をリセット
+                // 目玉が出ても、次の再抽選判定のために直前のアイテムIDは保持する
                 continue;
             }
             // 目玉ではなかったスロットの処理
@@ -949,11 +949,18 @@
                 return isReRoll;
             } else {
                 // 通常時のロジック（現状のコードから移植）
+                // ケース1: 直前のロールが通常のアイテムだった場合 (3つ前のアイテムと比較)
                 const simpleCase = (index >= 3 && rarities[index] === 1 && items[index] !== -1 && items[index] === items[index - 3] && canReRollRarity1);
+                
+                // ケース2: 直前のロールが再抽選だった場合 (4つ前の再抽選後アイテムと比較)
                 const reRollChainCase = (index >= 7 && rarities[index] === 1 && canReRollRarity1 && 
                                          rarities[index - 4] === 1 && items[index - 4] === items[index - 7] && // index-4が再抽選であることの（不完全な）チェック
                                          reGachaItems[index - 4] !== "---" && items[index] === itemNameMap[reGachaItems[index - 4]]);
-                return simpleCase || reRollChainCase;
+
+                // ケース3: 間に抽選目玉が挟まっていた場合 (6つ前のアイテムと比較)
+                const featuredInMiddleCase = (index >= 6 && rarities[index] === 1 && isfeaturedItemCell[index - 3] && items[index] !== -1 && items[index] === items[index - 6] && canReRollRarity1);
+
+                return simpleCase || reRollChainCase || featuredInMiddleCase;
             }
         }
 
@@ -1021,10 +1028,10 @@
                             if (showReGachaOffPath && reGachaItems[dataIndex] !== "---") {
                                 let next_r, next_c;
                                 if (c === 0) { // 現在のセルがA列の場合
-                                    next_r = r;     // 次のセルは同じ行
+                                    next_r = r + 1;     // 次のセルは同じ行
                                     next_c = 1;     // 次のセルはB列
                                 } else { // 現在のセルがB列の場合
-                                    next_r = r + 1; // 次のセルは次の行
+                                    next_r = r + 2; // 次のセルは次の行
                                     next_c = 0;     // 次のセルはA列
                                 }
                                 const nextRollRow = next_r + 1;
