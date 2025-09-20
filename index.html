@@ -252,22 +252,6 @@
     let moduloArray = []; // 乱数を10000で割った余り。排出率の判定に使う。
     
     // --- URLパラメータの読み込み ---
-    // ページが読み込まれたときに、URLの末尾についている情報（クエリパラメータ）を読み取ります。
-    // 例: ?seed=123&ng=10 のような部分
-    const params = new URLSearchParams(window.location.search); // URLのクエリパラメータを解析するオブジェクト
-    const urlSeed = params.get('seed'); // 'seed'パラメータ：計算の元になるシード値
-    const urlGuaranteed = params.get('ng'); // 'ng' (next guaranteed) パラメータ：次の確定枠までの回数
-    const urlFeaturedStock = params.get('fs'); // 'fs' (featured stock) パラメータ：目玉アイテムの残り在庫数
-    const urlLastRoll = params.get('lr'); // 'lr' (last roll) パラメータ：直前に引いたアイテムのID（再抽選判定用）
-    const urlComp = params.get('comp'); // 'comp' (complete) パラメータ：目玉アイテムをコンプリートしたかどうか
-    const urlGachaId = params.get('gacha'); // 'gacha' パラメータ：ガチャの種類を識別するID
-    const urlTx = params.get('tx'); // 'tx' パラメータ：SEED入力欄を表示するかどうかのフラグ
-    
-    if (urlSeed) { // URLに 'seed' パラメータがあれば
-        document.getElementById('seedInput').value = urlSeed; // 画面のSEED入力欄にその値を設定する
-    }
-    
-    // --- 乱数生成関数 ---
     function xorshift32(seed) { // Xorshift32というアルゴリズムで、予測可能な乱数列を生成する関数
         let x = seed; // 元になるシード値
         x ^= x << 13; // ビット演算で値をかき混ぜる
@@ -361,6 +345,20 @@
     // --- 初期化処理 ---
     setupGachaRarityItems();
 
+    // 「next guaranteed」ドロップダウンの選択肢を生成（初回読み込み時に一度だけ実行）
+    const rollSelect = document.getElementById('guaranteedRollsInput');
+    const unsetValue = 'none';
+    const unsetOption = document.createElement('option');
+    unsetOption.value = unsetValue;
+    unsetOption.textContent = '未設定';
+    rollSelect.appendChild(unsetOption);
+    for (let i = 1; i <= 30; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        rollSelect.appendChild(option);
+    }
+
     // 目玉残数ドロップダウンを生成する関数
     function populateFeaturedStockInput(gachaId, preferredValue = 'none') {
         const gacha = gachaMaster[gachaId]; // 指定されたガチャIDの情報を取得
@@ -397,47 +395,28 @@
 
     // 「更新」ボタンがクリックされたときの処理
     executeButton.addEventListener('click', () => {
-        runSimulationAndDisplay({ hideSeedInput: true }); // シミュレーションを再実行し、SEED入力欄を隠すオプションを渡す
+        runSimulationAndDisplay({
+            hideSeedInput: true,
+            uiOverrides: { seed: seedInput.value }
+        });
     });
 
-    // 「next guaranteed」ドロップダウンの初期化
-    const rollSelect = document.getElementById('guaranteedRollsInput');
-
-    const unsetValue = 'none'; // 「未設定」の選択肢の値
-    const unsetOption = document.createElement('option');
-    unsetOption.value = unsetValue;
-    unsetOption.textContent = '未設定';
-    rollSelect.appendChild(unsetOption);
-
-    for (let i = 1; i <= 30; i++) { // 1から30までの選択肢を生成
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = i;
-        rollSelect.appendChild(option);
-    }
-    
-    if (urlGuaranteed) { // URLに 'ng' パラメータがあれば
-        guaranteedRollsInput.value = urlGuaranteed; // ドロップダウンの値をURLの値に設定
-    } else { // なければ
-        guaranteedRollsInput.value = unsetValue; // 「未設定」を選択状態にする
-    }
-    
     // 「next guaranteed」ドロップダウンが変更されたときの処理
     guaranteedRollsInput.addEventListener('change', () => {
-        runSimulationAndDisplay(); // シミュレーションを再実行
+        runSimulationAndDisplay({ uiOverrides: { guaranteedRolls: guaranteedRollsInput.value } });
     });
 
     // 「目玉残数」ドロップダウンが変更されたときの処理
     featuredStockInput.addEventListener('change', () => {
-        runSimulationAndDisplay();
+        runSimulationAndDisplay({ uiOverrides: { featuredStock: featuredStockInput.value } });
     });
 
     // 「コンプ済み」チェックボックスの初期化と変更時の処理
-    if (urlComp === 'true') { // URLに 'comp=true' があれば
-        featuredCompleteCheckbox.checked = true; // チェックボックスをオンにする
-    }
     featuredCompleteCheckbox.addEventListener('change', () => {
-        runSimulationAndDisplay({ hideSeedInput: true }); // シミュレーションを再実行し、SEED入力欄を隠す
+        runSimulationAndDisplay({
+            hideSeedInput: true,
+            uiOverrides: { isComplete: featuredCompleteCheckbox.checked }
+        });
     });
 
     // 「Copy SEED」リンクがクリックされたときの処理
@@ -472,20 +451,42 @@
     // --- メイン処理関数 ---
     // シミュレーションを実行し、結果を画面に表示する一連の流れを管理します。
     function runSimulationAndDisplay(options = {}) {
+        const { hideSeedInput = false, uiOverrides = {} } = options;
+
+        // --- URLパラメータの読み込みとUIの同期 ---
+        // 実行のたびに現在のURLを解析し、UIの状態をURLに合わせます。
+        const params = new URLSearchParams(window.location.search);
+        const urlSeed = params.get('seed');
+        const urlGuaranteed = params.get('ng');
+        const urlFeaturedStock = params.get('fs');
+        const urlLastRoll = params.get('lr');
+        const urlComp = params.get('comp');
+        const urlGachaId = params.get('gacha');
+        const urlTx = params.get('tx');
+
+        // 状態を決定（UI操作によるオーバーライド > URLパラメータ）
+        const seedValueStr = uiOverrides.seed !== undefined ? uiOverrides.seed : (urlSeed || seedInput.value);
+        const isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true');
+        const guaranteedRollsValue = uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : (urlGuaranteed || 'none');
+        const featuredStockValue = uiOverrides.featuredStock !== undefined ? uiOverrides.featuredStock : (urlFeaturedStock || 'none');
+
+        // 決定した状態でUIを同期
+        seedInput.value = seedValueStr;
+        guaranteedRollsInput.value = guaranteedRollsValue;
+        featuredCompleteCheckbox.checked = isFeaturedComplete;
+
         const selectedGachaId = urlGachaId || '42'; // URLからガチャIDを取得、なければ'42'をデフォルトに
-        const { hideSeedInput = false } = options; // オプションからSEED入力欄を隠すかどうかのフラグを取得
 
         const seedValue = parseInt(seedInput.value, 10); // 入力されたシード値を取得し、整数に変換
-        const firstGuaranteedRolls = parseInt(guaranteedRollsInput.value, 10) || 30; // 選択された次回確定枠の回数を取得（未設定の場合は30）
+        const firstGuaranteedRolls = parseInt(guaranteedRollsValue, 10) || 30; // 選択された次回確定枠の回数を取得（未設定の場合は30）
 
         let lastRollItemId = null; // 直前のアイテムIDを初期化
-        const isFeaturedComplete = featuredCompleteCheckbox.checked; // 「コンプ済み」の状態を取得
         if (urlLastRoll && !isNaN(parseInt(urlLastRoll, 10))) { // URLに 'lr' パラメータがあれば
             lastRollItemId = parseInt(urlLastRoll, 10); // 直前のアイテムIDとして設定
         }
 
         // 「目玉残数」ドロップダウンを現在のガチャIDとURLパラメータに合わせて更新
-        populateFeaturedStockInput(selectedGachaId, featuredStockInput.value || urlFeaturedStock);
+        populateFeaturedStockInput(selectedGachaId, featuredStockValue);
 
         const featuredStockLimitStr = featuredStockInput.value; // 「目玉残数」の値を取得
         const featuredStockLimit = featuredStockLimitStr === 'none' ? Infinity : parseInt(featuredStockLimitStr, 10); // 'none'なら無限、それ以外は整数に
@@ -926,6 +927,8 @@
     // URLのクエリパラメータ文字列を生成する
     function generateUrlQuery(params) {
         // パラメータ、URL、デフォルトの順でガチャIDを取得
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        const urlGachaId = currentUrlParams.get('gacha');
         const currentGachaId = params.gachaId || urlGachaId || '42';
         let query = `?gacha=${currentGachaId}`;
         if (params.seed !== undefined) query += `&seed=${params.seed}`;
