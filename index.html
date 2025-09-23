@@ -1030,11 +1030,20 @@
                             let reGachaItemName = reGachaItems[dataIndex];
                             const reGachaItemId = itemNameMap[reGachaItemName];
                             const originalItemName = itemMaster[items[dataIndex]] ? itemMaster[items[dataIndex]].name : "不明";
-                            const href = generateUrlQuery({
+                            const originalItemId = items[dataIndex];
+
+                            const reGachaLinkParams = {
                                 seed: xorshiftArray[dataIndex + 2], ng: nextGuaranteed, fs: stockAfterThisRoll, lr: reGachaItemId,
-                                comp: stockAfterThisRoll === 0, gachaId: gachaId
-                            });
-                            cellContent = `${originalItemName}<br><a href="${href}">${nextRerollRollAddress})${reGachaItemName}</a>`;
+                                comp: true, gachaId: gachaId
+                            };
+                            const originalItemLinkParams = {
+                                seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteed, fs: stockAfterThisRoll, lr: originalItemId,
+                                comp: true, gachaId: gachaId
+                            };
+
+                            const originalItemContent = `<a href="${generateUrlQuery(originalItemLinkParams)}">${originalItemName}</a>`;
+                            const reGachaLink = `<a href="${generateUrlQuery(reGachaLinkParams)}">${nextRerollRollAddress})${reGachaItemName}</a>`;
+                            cellContent = `${originalItemContent}<br>${reGachaLink}`;
                         } else {
                             const currentItemId = items[dataIndex];
                             const href = generateUrlQuery({
