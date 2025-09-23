@@ -267,6 +267,7 @@
             name: 'ハロウィン', // ガチャ名
             featuredItemRate: 600, // 目玉アイテムの排出率 (0.01%単位)
             featuredItemStock: 5, // 目玉アイテムの在庫数
+            guaranteedCycle: 30, // 確定枠の周期
             rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 }, // 各レアリティの排出率
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14] // このガチャから排出される可能性のあるアイテムIDのリスト
         },
@@ -274,6 +275,7 @@
             name: '1.1億DL記念',
             featuredItemRate: 500,
             featuredItemStock: 5,
+            guaranteedCycle: 30,
             rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 375, 381, 689]
         }
@@ -803,11 +805,10 @@
         const nextRollRow = Math.floor(nextRollIndex / 3) + 1;
         const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + ((nextRollIndex) % 3));
         const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-        const currentGuaranteedRolls = parseInt(guaranteedRollsInput.value, 10) || 30;
-        let nextGuaranteedForTenPull = currentGuaranteedRolls - 10; // 10回引いたので10減らす
-        if (nextGuaranteedForTenPull <= 0) {
-            nextGuaranteedForTenPull += 30; // 0以下になったら30を足す
-        }
+        const currentGuaranteedRolls = parseInt(guaranteedRollsInput.value, 10) || (gacha.guaranteedCycle || 30);
+        const guaranteedCycle = gacha.guaranteedCycle || 30;
+        let nextGuaranteedForTenPull = currentGuaranteedRolls - 10;
+        if (nextGuaranteedForTenPull <= 0) nextGuaranteedForTenPull += guaranteedCycle;
 
         let lrParamForTenPull = '';
         if (actualItemIdForG9 !== -1) {
@@ -952,6 +953,8 @@
 
     // 計算結果を元にHTMLのテーブルを生成して表示する関数
     function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows) {
+        const gacha = gachaMaster[gachaId];
+        const guaranteedCycle = gacha.guaranteedCycle || 30;
         const isFeaturedComplete = featuredCompleteCheckbox.checked;
 
         // パス上にないセルが再抽選の対象となるかを判定するヘルパー関数
@@ -1006,7 +1009,7 @@
                         }
 
                         let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
-                        if (nextGuaranteed <= 0) nextGuaranteed += 30;
+                        if (nextGuaranteed <= 0) nextGuaranteed += guaranteedCycle;
                         const stockAfterThisRoll = 0;
                         const showReGachaOnPath = (forceReGachaMode && reGachaItems[dataIndex] !== "---") || reRolledIndicesOnPath.has(visualIndex);
                         if (showReGachaOnPath) {
@@ -1109,8 +1112,12 @@
 
                         if (isOnPath) {
                             const pathPosition = path.indexOf(index);
-                            let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
-                            if (nextGuaranteed <= 0) nextGuaranteed += 30;
+                            const currentSlotNumber = pathPosition + 1;
+                            const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
+                                ? 0
+                                : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
+                            let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
+                            while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
                             const featuredSlots = new Set();
                             for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
                             const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
@@ -1130,20 +1137,43 @@
                         const reGachaItemName = reGachaItems[index];
                         const reGachaItemId = itemNameMap[reGachaItemName];
                         const originalItemName = itemMaster[items[index]] ? itemMaster[items[index]].name : "不明";
-                        const linkParams = { seed: xorshiftArray[index + 3], lr: reGachaItemId, gachaId: gachaId };
+                        const originalItemId = items[index];
+                        
+                        const reGachaLinkParams = { seed: xorshiftArray[index + 3], lr: reGachaItemId, gachaId: gachaId };
+                        let originalItemContent = originalItemName;
 
                         if (isOnPath) {
                             const pathPosition = path.indexOf(index);
-                            let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
-                            if (nextGuaranteed <= 0) nextGuaranteed += 30;
+                            const currentSlotNumber = pathPosition + 1;
+                            const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
+                                ? 0
+                                : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
+                            let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
+                            while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
                             const featuredSlots = new Set();
                             for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
                             const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
-                            linkParams.ng = nextGuaranteed;
-                            linkParams.fs = stockAfterThisRoll;
-                            linkParams.comp = stockAfterThisRoll === 0;
+                            const isComp = stockAfterThisRoll === 0;
+
+                            // Add path-specific params to the re-roll link
+                            reGachaLinkParams.ng = nextGuaranteed;
+                            reGachaLinkParams.fs = stockAfterThisRoll;
+                            reGachaLinkParams.comp = isComp;
+
+                            // Create params and link for the original item
+                            const originalItemLinkParams = {
+                                seed: xorshiftArray[index + 2],
+                                lr: originalItemId,
+                                gachaId: gachaId,
+                                ng: nextGuaranteed,
+                                fs: stockAfterThisRoll,
+                                comp: isComp
+                            };
+                            originalItemContent = `<a href="${generateUrlQuery(originalItemLinkParams)}">${originalItemName}</a>`;
                         }
-                        cellContent = `${originalItemName}<br><a href="${generateUrlQuery(linkParams)}">${nextRollAddress})${reGachaItemName}</a>`;
+                        
+                        const reGachaLink = `<a href="${generateUrlQuery(reGachaLinkParams)}">${nextRollAddress})${reGachaItemName}</a>`;
+                        cellContent = `${originalItemContent}<br>${reGachaLink}`;
 
                     } else { // --- 通常セルの処理 ---
                         const currentItemId = items[index];
@@ -1151,8 +1181,12 @@
                             const linkParams = { seed: xorshiftArray[index + 2], lr: currentItemId, gachaId: gachaId };
                             if (isOnPath) {
                                 const pathPosition = path.indexOf(index);
-                                let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
-                                if (nextGuaranteed <= 0) nextGuaranteed += 30;
+                                const currentSlotNumber = pathPosition + 1;
+                                const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
+                                    ? 0
+                                    : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
+                                let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
+                                while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
                                 const featuredSlots = new Set();
                                 for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
                                 const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
@@ -1177,7 +1211,7 @@
                             const stockAfterGuaranteed = Math.max(0, initialStockForUrl - featuredSlots.size);
                             const linkHref = generateUrlQuery({
                                 seed: (path[pathPosition] > 0) ? xorshiftArray[path[pathPosition] - 1] : parseInt(seedInput.value, 10),
-                                ng: 30, // 確定枠の次は30回後
+                                ng: guaranteedCycle, // 確定枠の次は周期分後
                                 fs: stockAfterGuaranteed,
                                 lr: lastItemIdsOnPath[pathPosition],
                                 comp: stockAfterGuaranteed === 0,
