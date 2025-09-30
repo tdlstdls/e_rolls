@@ -264,7 +264,7 @@
     // ガチャやアイテムの基本的な情報を定義しています。
     const gachaMaster = { // ガチャごとの設定
         '34': {
-            name: 'ハロウィン', // ガチャ名
+            name: '(旧)ハロウィン', // ガチャ名
             featuredItemRate: 600, // 目玉アイテムの排出率 (0.01%単位)
             featuredItemStock: 5, // 目玉アイテムの在庫数
             guaranteedCycle: 30, // 確定枠の周期
@@ -278,6 +278,14 @@
             guaranteedCycle: 30,
             rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 375, 381, 689]
+        },
+        '44': {
+            name: 'ハロウィン',
+            featuredItemRate: 500,
+            featuredItemStock: 8,
+            guaranteedCycle: 30,
+            rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
+            pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 18]
         }
     };
 
@@ -291,6 +299,7 @@
         11: { name: "1万XP", rarity: 1 },
         12: { name: "3万XP", rarity: 1 },
         14: { name: "10万XP", rarity: 2 },
+        18: { name: "200万XP", rarity: 3 },
         375: { name: "記念ネコ", rarity: 3 },
         381: { name: "ねこ農家", rarity: 3 },
         689: { name: "石の上にも10年ネコ", rarity: 3 }
