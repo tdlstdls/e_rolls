@@ -464,7 +464,7 @@
         // パラメータ、URL、デフォルトの順でガチャIDを取得
         const currentUrlParams = new URLSearchParams(window.location.search);
         const urlGachaId = currentUrlParams.get('gacha');
-        const currentGachaId = params.gachaId || urlGachaId || '42';
+        const currentGachaId = params.gachaId || urlGachaId || '44';
 
         let query = `?gacha=${currentGachaId}`;
         if (params.seed !== undefined) query += `&seed=${params.seed}`;
@@ -506,7 +506,7 @@
         guaranteedRollsInput.value = guaranteedRollsValue;
         featuredCompleteCheckbox.checked = isFeaturedComplete;
 
-        const selectedGachaId = urlGachaId || '42'; // URLからガチャIDを取得、なければ'42'をデフォルトに
+        const selectedGachaId = urlGachaId || '44'; // URLからガチャIDを取得、なければ'44'をデフォルトに
 
         const seedValue = parseInt(seedInput.value, 10); // 入力されたシード値を取得し、整数に変換
         const firstGuaranteedRolls = parseInt(guaranteedRollsValue, 10) || 30; // 選択された次回確定枠の回数を取得（未設定の場合は30）
