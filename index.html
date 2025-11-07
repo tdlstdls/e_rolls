@@ -197,7 +197,7 @@
 <body>
 
 <div class="container">
-    <h1>イベントガチャロールズ</h1>
+    <h1>イベントガチャロールズ<br>（目玉なし10連の対応中）</h1>
     <div class="input-group">
         <div class="controls">
             <div class="row">
@@ -210,8 +210,7 @@
                         <select id="guaranteedRollsInput"></select>
                     </div>
                     <div id="lastRollDisplay" class="input-item-display-only">
-                        <!-- LastRoll content goes here -->
-                    </div>
+                        </div>
                 </div>
                 <div class="control-group-right">
                     <div class="input-item">
@@ -268,6 +267,8 @@
             featuredItemRate: 600, // 目玉アイテムの排出率 (0.01%単位)
             featuredItemStock: 5, // 目玉アイテムの在庫数
             guaranteedCycle: 30, // 確定枠の周期
+            uberGuaranteedFlag: false, // 目玉なし（コンプ済み時）超激レア確定処理の有無
+            legendGuaranteedFlag: false, // 目玉なし（コンプ済み時）伝説レア確定処理の有無
             rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 }, // 各レアリティの排出率
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14] // このガチャから排出される可能性のあるアイテムIDのリスト
         },
@@ -276,6 +277,8 @@
             featuredItemRate: 500,
             featuredItemStock: 5,
             guaranteedCycle: 30,
+            uberGuaranteedFlag: false,
+            legendGuaranteedFlag: false,
             rarityRates: { '0': 1000, '1': 5000, '2': 3000, '3': 1000, '4': 0 },
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 375, 381, 689]
         },
@@ -284,8 +287,20 @@
             featuredItemRate: 500,
             featuredItemStock: 8,
             guaranteedCycle: 30,
+            uberGuaranteedFlag: false,
+            legendGuaranteedFlag: false,
             rarityRates: { '0': 2000, '1': 4900, '2': 3000, '3': 0, '4': 100 },
             pool: [0, 2, 3, 4, 5, 10, 11, 12, 14, 18]
+        },
+        '45': {
+            name: 'にゃんこレンジャー',
+            featuredItemRate: 500,
+            featuredItemStock: 0,
+            guaranteedCycle: 30,
+            uberGuaranteedFlag: true,
+            legendGuaranteedFlag: true,
+            rarityRates: { '0': 0, '1': 5900, '2': 3000, '3': 1000, '4': 100 },
+            pool: [0,2,3,4,5,11,12,14,197,184,375,726,831]
         }
     };
 
@@ -300,9 +315,13 @@
         12: { name: "3万XP", rarity: 1 },
         14: { name: "10万XP", rarity: 2 },
         18: { name: "200万XP", rarity: 4 },
+        197: { name: "100万XP", rarity: 4 },
+        184: { name: "ミスターニンジャ", rarity: 3 },
         375: { name: "記念ネコ", rarity: 3 },
         381: { name: "ねこ農家", rarity: 3 },
-        689: { name: "石の上にも10年ネコ", rarity: 3 }
+        689: { name: "石の上にも10年ネコ", rarity: 3 },
+        726: { name: "ネコメダル王", rarity: 3 },
+        831: { name: "スカーフにゃんこ", rarity: 3 }
     };
     
     // アイテム名からIDを逆引き（逆検索）するためのマップを事前に作成
@@ -356,19 +375,7 @@
     // --- 初期化処理 ---
     setupGachaRarityItems();
 
-    // 「next guaranteed」ドロップダウンの選択肢を生成（初回読み込み時に一度だけ実行）
-    const rollSelect = document.getElementById('guaranteedRollsInput');
-    const unsetValue = 'none';
-    const unsetOption = document.createElement('option');
-    unsetOption.value = unsetValue;
-    unsetOption.textContent = '未設定';
-    rollSelect.appendChild(unsetOption);
-    for (let i = 1; i <= 30; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = i;
-        rollSelect.appendChild(option);
-    }
+    // 「next guaranteed」ドロップダウンは runSimulationAndDisplay 内で動的に生成されます。
 
     // 目玉残数ドロップダウンを生成する関数
     function populateFeaturedStockInput(gachaId, preferredValue = 'none') {
@@ -464,7 +471,7 @@
         // パラメータ、URL、デフォルトの順でガチャIDを取得
         const currentUrlParams = new URLSearchParams(window.location.search);
         const urlGachaId = currentUrlParams.get('gacha');
-        const currentGachaId = params.gachaId || urlGachaId || '44';
+        const currentGachaId = params.gachaId || urlGachaId || '45';
 
         let query = `?gacha=${currentGachaId}`;
         if (params.seed !== undefined) query += `&seed=${params.seed}`;
@@ -496,17 +503,17 @@
 
         // 状態を決定（UI操作によるオーバーライド > URLパラメータ）
         const seedValueStr = uiOverrides.seed !== undefined ? uiOverrides.seed : (urlSeed || seedInput.value);
-        const isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true');
+        let isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true');
         const guaranteedRollsValue = uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : (urlGuaranteed || 'none');
         const featuredStockValue = uiOverrides.featuredStock !== undefined ? uiOverrides.featuredStock : (urlFeaturedStock || 'none');
 
         const tableRows = parseInt(urlRoll, 10) || 100; // rollパラメータがなければ100行
         // 決定した状態でUIを同期
         seedInput.value = seedValueStr;
-        guaranteedRollsInput.value = guaranteedRollsValue;
+        // guaranteedRollsInput.value = guaranteedRollsValue; // populateGuaranteedRolls の中で設定
         featuredCompleteCheckbox.checked = isFeaturedComplete;
 
-        const selectedGachaId = urlGachaId || '44'; // URLからガチャIDを取得、なければ'44'をデフォルトに
+        const selectedGachaId = urlGachaId || '45'; // URLからガチャIDを取得、なければデフォルトに
 
         const seedValue = parseInt(seedInput.value, 10); // 入力されたシード値を取得し、整数に変換
         const firstGuaranteedRolls = parseInt(guaranteedRollsValue, 10) || 30; // 選択された次回確定枠の回数を取得（未設定の場合は30）
@@ -532,6 +539,16 @@
             output.textContent = '無効なガチャIDです。'; // エラーメッセージを表示
             return; // 処理を中断
         }
+
+        const featuredCompleteControl = document.getElementById('featuredCompleteCheckbox').parentElement;
+        if (gacha.featuredItemStock === 0) {
+            isFeaturedComplete = true;
+            featuredCompleteCheckbox.checked = true;
+            featuredCompleteControl.classList.add('hidden-control');
+        } else {
+            featuredCompleteControl.classList.remove('hidden-control');
+        }
+        
         
         const requiredSeeds = Math.max(1000, tableRows * 4); // 必要な乱数の数を計算
         // --- 乱数生成 ---
@@ -632,29 +649,31 @@
             pathComplete = []; // コンプ済み用のパスを初期化
             currentPath = pathComplete; // 現在のパスとしてコンプ済み用を使用
             let dataIndex = 0; // データ（乱数）の消費インデックス
-            let visualIndex = 0; // 見た目上のテーブルのインデックス
-            while (dataIndex < requiredSeeds && visualIndex < requiredSeeds) {
-                lastItemIdsOnPath.push(lastActualItemId); // 現在の「直前のアイテム」を記録
-                currentPath.push(visualIndex); // 見た目のインデックスをパスに追加
-                visualToDataMap.set(visualIndex, dataIndex); // 見た目とデータの対応を記録
+            
+            // (修正) A列(c=0)とB列(c=1)を順番に処理する
+            for (let r = 0; r < tableRows; r++) { // 行ループ
+                for (let c = 0; c < 2; c++) { // A列(c=0), B列(c=1)
+                    if (dataIndex >= requiredSeeds) break; // 乱数枯渇
 
-                // (※) 再抽選の対象となるか判定
-                const isReRoll = canReRollRarity1 && rarities[dataIndex] === 1 && lastActualItemId === items[dataIndex];
+                    const visualIndex = r * 3 + c; // 見た目上のインデックス (0, 1, 3, 4, 6, 7, ...)
+                    
+                    lastItemIdsOnPath.push(lastActualItemId); // 現在の「直前のアイテム」を記録
+                    currentPath.push(visualIndex); // 見た目のインデックスをパスに追加
+                    visualToDataMap.set(visualIndex, dataIndex); // 見た目とデータの対応を記録
 
-                if (isReRoll) { // 再抽選が発生した場合
-                    reRolledIndicesOnPath.add(visualIndex); // 再抽選発生を記録
-                    lastActualItemId = reGachaItemIds[dataIndex]; // 次の「直前のアイテム」は再抽選後のもの
-                    dataIndex += 3; // データ（乱数）を3つ消費
-                    if (visualIndex % 3 === 0) { // 現在がA列の場合
-                        visualIndex += 4; // 次は同じ行のB列へ
-                    } else { // 現在がB列の場合
-                        visualIndex += 5; // 次は次の行のA列へ (C列をスキップ)
+                    // (※) 再抽選の対象となるか判定
+                    const isReRoll = canReRollRarity1 && rarities[dataIndex] === 1 && lastActualItemId === items[dataIndex];
+
+                    if (isReRoll) { // 再抽選が発生した場合
+                        reRolledIndicesOnPath.add(visualIndex); // 再抽選発生を記録
+                        lastActualItemId = reGachaItemIds[dataIndex]; // 次の「直前のアイテム」は再抽選後のもの
+                        dataIndex += 3; // データ（乱数）を3つ消費
+                    } else { // 再抽選が発生しない場合
+                        lastActualItemId = items[dataIndex]; // 次の「直前のアイテム」は今回引いたもの
+                        dataIndex += 2; // データ（乱数）を2つ消費
                     }
-                } else { // 再抽選が発生しない場合
-                    lastActualItemId = items[dataIndex]; // 次の「直前のアイテム」は今回引いたもの
-                    dataIndex += 2; // データ（乱数）を2つ消費
-                    visualIndex += 3; // 見た目上は3つ進む
                 }
+                if (dataIndex >= requiredSeeds) break; // 乱数枯渇
             }
         } else { // 目玉コンプ済でない場合
             pathNotComplete = []; // コンプしてないとき用のパスを初期化
@@ -846,6 +865,7 @@
         // --- G列11行目以降（単発N回後の10連での目玉期待数）の計算 ---
         const expectedFeaturedItemsArray = [];
         const initialStock = featuredStockLimitStr === 'none' ? Infinity : parseInt(featuredStockLimitStr, 10);
+        const initialGuaranteedRolls = parseInt(guaranteedRollsInput.value, 10); // 'none' なら NaN
 
         for (let start = 1; start <= 10; start++) { // 単発1回後〜10回後までループ
             if (currentPath[start] === undefined) {
@@ -864,15 +884,23 @@
                 const pIndex = currentPath[i];
                 const rollNumber = i + 1;
                 if (isfeaturedItemCell[pIndex]) featuredSlotsBeforeTenPull.add(pIndex);
-                if (rollNumber === firstGuaranteedRolls) featuredSlotsBeforeTenPull.add(pIndex);
+                if (!isNaN(initialGuaranteedRolls) && rollNumber >= initialGuaranteedRolls && (rollNumber - initialGuaranteedRolls) % guaranteedCycle === 0) {
+                     featuredSlotsBeforeTenPull.add(pIndex);
+                }
             }
             const featuredItemsDrawnBeforeTenPull = Math.min(featuredSlotsBeforeTenPull.size, initialStock);
             const stockAfterSingle = Math.max(0, initialStock - featuredItemsDrawnBeforeTenPull);
 
             // その状態から10連ガチャを引いた場合の目玉数をシミュレート
             const startSeedIndex = currentPath[start];
-            const guaranteedRollsForThisTenPull = firstGuaranteedRolls - start;
-            const isGuaranteedInThisTenPull = guaranteedRollsForThisTenPull > 0 && guaranteedRollsForThisTenPull <= 10;
+            let guaranteedRollsForThisTenPull = 'none';
+            if (!isNaN(initialGuaranteedRolls)) {
+                let nextG = initialGuaranteedRolls - start;
+                while (nextG <= 0) { nextG += guaranteedCycle; }
+                guaranteedRollsForThisTenPull = nextG;
+            }
+            
+            const isGuaranteedInThisTenPull = guaranteedRollsForThisTenPull !== 'none' && guaranteedRollsForThisTenPull > 0 && guaranteedRollsForThisTenPull <= 10;
             const guaranteedSlotIndexInThisTenPull = isGuaranteedInThisTenPull ? guaranteedRollsForThisTenPull - 1 : -1;
 
             const lotteryHitSlots = [];
@@ -902,7 +930,9 @@
         }
         
         // --- 表示処理 ---
-        createAndDisplayTable(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows);
+        // (修正) guaranteedRollsForTable には input の value (文字列) をそのまま渡す
+        let guaranteedRollsForTable = guaranteedRollsInput.value;
+        createAndDisplayTable(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, guaranteedRollsForTable, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows);
     
         // --- URLとUIの更新 ---
         const shouldHaveTx = urlTx && !hideSeedInput;
@@ -927,13 +957,46 @@
         showSeedInputLink.href = showSeedLinkUrl;
 
         // 「コンプ済み」の状態に応じてコントロールの表示を切り替える
+        const populateGuaranteedRolls = (max, currentVal) => {
+            const currentMax = guaranteedRollsInput.dataset.max || 0;
+            // (修正) currentVal が 'none' でないか、またはオプションが未生成の場合のみ再生成
+            if (currentMax == max && guaranteedRollsInput.options.length > 1 && (currentVal === 'none' || guaranteedRollsInput.querySelector(`option[value="${currentVal}"]`))) {
+                guaranteedRollsInput.value = currentVal;
+                return;
+            }
+            guaranteedRollsInput.innerHTML = '';
+            const unsetOption = document.createElement('option');
+            unsetOption.value = 'none';
+            unsetOption.textContent = '未設定';
+            guaranteedRollsInput.appendChild(unsetOption);
+            for (let i = 1; i <= max; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                guaranteedRollsInput.appendChild(option);
+            }
+            guaranteedRollsInput.dataset.max = max;
+            if (guaranteedRollsInput.querySelector(`option[value="${currentVal}"]`)) {
+                guaranteedRollsInput.value = currentVal;
+            } else {
+                guaranteedRollsInput.value = 'none';
+            }
+        };
+
         if (isFeaturedComplete) {
-            guaranteedControl.classList.add('hidden-control');
             stockControl.classList.add('hidden-control');
-            guaranteedRollsInput.value = 'none';
+            // (修正) uberGuaranteedFlag または legendGuaranteedFlag が true なら確定枠を表示 (周期 10)
+            if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
+                guaranteedControl.classList.remove('hidden-control');
+                populateGuaranteedRolls(10, guaranteedRollsValue); // (修正) max=10, 値を guaranteedRollsValue で設定
+            } else {
+                guaranteedControl.classList.add('hidden-control');
+                guaranteedRollsInput.value = 'none';
+            }
         } else {
             guaranteedControl.classList.remove('hidden-control');
             stockControl.classList.remove('hidden-control');
+            populateGuaranteedRolls(gacha.guaranteedCycle || 30, guaranteedRollsValue); // (修正) 値を guaranteedRollsValue で設定
         }
 
         // 'tx'パラメータに応じてSEED入力欄の表示/非表示を切り替える
@@ -965,302 +1028,331 @@
         const gacha = gachaMaster[gachaId];
         const guaranteedCycle = gacha.guaranteedCycle || 30;
         const isFeaturedComplete = featuredCompleteCheckbox.checked;
+        
+        // (修正) 渡された currentGuaranteedRolls (文字列 'none' の可能性がある) を数値に変換
+        const initialGuaranteedRolls = parseInt(currentGuaranteedRolls, 10); // NaN または数値
+
+        // G列用の確定超激・伝説レアを計算するヘルパー関数
+        const getGuaranteedUber = (dataIndex) => {
+            // (修正) uberGuaranteedFlag または legendGuaranteedFlag のどちらかが true であれば実行
+            if ((!gacha.uberGuaranteedFlag && !gacha.legendGuaranteedFlag) || !isFeaturedComplete || dataIndex === undefined || dataIndex + 1 >= xorshiftArray.length) return null;
+
+            const uberRate = gacha.rarityRates['3'];
+            const legendRate = gacha.rarityRates['4'];
+            const hasUbers = gacha.rarityItems['3'] && gacha.rarityItems['3'].length > 0;
+            const hasLegends = gacha.rarityItems['4'] && gacha.rarityItems['4'].length > 0;
+
+            // (修正) 実際にプールに存在するレートのみを考慮する
+            const effectiveUberRate = hasUbers ? uberRate : 0;
+            const effectiveLegendRate = hasLegends ? legendRate : 0;
+            const totalRate = effectiveUberRate + effectiveLegendRate;
+
+            if (totalRate === 0) return null; // No ubers or legends in the pool
+
+            // (修正) 1シード目（レアリティ判定） - xorshiftArray[dataIndex] がレアリティ抽選用シード
+            const rarityRoll = xorshiftArray[dataIndex] % totalRate;
+            
+            let rarityId;
+            let itemPool;
+            
+            // (修正) レートに基づいてレアリティを決定
+            if (rarityRoll < effectiveUberRate) {
+                rarityId = 3; // 超激レア
+                itemPool = gacha.rarityItems[rarityId];
+            } else {
+                rarityId = 4; // 伝説レア
+                itemPool = gacha.rarityItems[rarityId];
+            }
+
+            if (!itemPool || itemPool.length === 0) return null; // Should not happen with effective rates, but for safety
+
+            // (修正) 2シード目（キャラ判定） - xorshiftArray[dataIndex + 1] がアイテム抽選用シード
+            const itemRoll = xorshiftArray[dataIndex + 1] % itemPool.length;
+            const itemId = itemPool[itemRoll];
+            return itemMaster[itemId] ? itemMaster[itemId].name : "不明";
+        };
 
         // パス上にないセルが再抽選の対象となるかを判定するヘルパー関数
-        // この関数は、現状の複雑な判定ロジックをカプセル化します。
         function isReRollTriggeredOffPath(index) {
             if (isFeaturedComplete) {
-                // 目玉コンプ時のロジック（現状のコードから移植）
-                // visualToDataMap にないインデックスは、パス外の仮想的なデータインデックスを計算する
                 const dataIndex = visualToDataMap.get(index) ?? (Math.floor(index / 3) * 2 + (index % 3));
                 const isReRoll = (dataIndex >= 2 && rarities[dataIndex] === 1 && items[dataIndex] === items[dataIndex - 2] && canReRollRarity1) || 
                                  (dataIndex >= 5 && rarities[dataIndex] === 1 && canReRollRarity1 && rarities[dataIndex - 3] === 1 && items[dataIndex - 3] === items[dataIndex - 5] && reGachaItems[dataIndex - 3] !== "---" && items[dataIndex] === itemNameMap[reGachaItems[dataIndex - 3]]);
                 return isReRoll;
             } else {
-                // 通常時のロジック（現状のコードから移植）
-                // ケース1: 直前のロールが通常のアイテムだった場合 (3つ前のアイテムと比較)
                 const simpleCase = (index >= 3 && rarities[index] === 1 && items[index] !== -1 && items[index] === items[index - 3] && canReRollRarity1);
-                
-                // ケース2: 直前のロールが再抽選だった場合 (4つ前の再抽選後アイテムと比較)
                 const reRollChainCase = (index >= 7 && rarities[index] === 1 && canReRollRarity1 && 
-                                         rarities[index - 4] === 1 && items[index - 4] === items[index - 7] && // index-4が再抽選であることの（不完全な）チェック
+                                         rarities[index - 4] === 1 && items[index - 4] === items[index - 7] &&
                                          reGachaItems[index - 4] !== "---" && items[index] === itemNameMap[reGachaItems[index - 4]]);
-
-                // ケース3: 間に抽選目玉が挟まっていた場合 (6つ前のアイテムと比較)
                 const featuredInMiddleCase = (index >= 6 && rarities[index] === 1 && isfeaturedItemCell[index - 3] && items[index] !== -1 && items[index] === items[index - 6] && canReRollRarity1);
-
                 return simpleCase || reRollChainCase || featuredInMiddleCase;
             }
         }
 
-        const pathSet = new Set(path); // 経路に含まれるかの検索を高速化するためにSetに変換
+        const pathSet = new Set(path);
         let table;
 
         if (isFeaturedComplete) {
-            // 目玉コンプ済: AGBG レイアウト (この部分は現在実装されていません)
-            // この部分は複雑なため、コメントは省略します。
-            table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>G</th><th>B</th><th>G</th></tr></thead><tbody>'; // AGBGレイアウトのヘッダー
+            table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr></thead><tbody>';
             for (let r = 0; r < tableRows; r++) {
                 table += `<tr><td>${r + 1}</td>`;
-                for (let c = 0; c < 2; c++) {
+
+                let cells = {
+                    A: { content: '---', classList: ['re-gacha-cell'] },
+                    AG: { content: '', classList: ['re-gacha-cell'] },
+                    B: { content: '---', classList: ['re-gacha-cell'] },
+                    BG: { content: '', classList: ['re-gacha-cell'] }
+                };
+
+                for (let c = 0; c < 2; c++) { // Process A and B columns
                     const visualIndex = r * 3 + c;
-                    let classList = ['re-gacha-cell'];
+                    const colName = (c === 0) ? 'A' : 'B';
                     let cellContent = "---";
+                    let classList = ['re-gacha-cell'];
+
                     if (pathSet.has(visualIndex)) {
+                        classList.push('path-cell');
                         const dataIndex = visualToDataMap.get(visualIndex);
                         const pathPosition = path.indexOf(visualIndex);
-
                         const currentRollNumber = pathPosition + 1;
-                        if (currentRollNumber > 0 && currentRollNumber % 10 === 0) {
-                            classList.push('path-cell-milestone');
-                        } else {
-                            classList.push('path-cell');
+                        if (currentRollNumber > 0 && currentRollNumber % 10 === 0) classList.push('path-cell-milestone');
+
+                        // (修正) 確定枠の周期を決定 (コンプ済み時)
+                        const currentGuaranteedCycle = (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) ? 10 : guaranteedCycle;
+
+                        // (★★★ ユーザーリクエストにより修正 ★★★) 
+                        // next guaranteed の値に関わらず、常に確定枠の内容を表示
+                        const guaranteedItemName = getGuaranteedUber(dataIndex);
+                        if (guaranteedItemName) {
+                            cells[colName + 'G'].content = `<span class="featuredItem-text">${guaranteedItemName}</span>`;
                         }
 
-                        let nextGuaranteed = currentGuaranteedRolls - (pathPosition + 1);
-                        if (nextGuaranteed <= 0) nextGuaranteed += guaranteedCycle;
-                        const stockAfterThisRoll = 0;
+                        // (修正) 次の確定枠までの残り回数を計算 (リンク生成用)
+                        let nextGuaranteedParam = 'none';
+                        if (!isNaN(initialGuaranteedRolls)) {
+                            let nextGuaranteed = initialGuaranteedRolls - currentRollNumber;
+                            while (nextGuaranteed <= 0) {
+                                nextGuaranteed += currentGuaranteedCycle;
+                            }
+                            nextGuaranteedParam = nextGuaranteed;
+                        }
+
                         const showReGachaOnPath = (forceReGachaMode && reGachaItems[dataIndex] !== "---") || reRolledIndicesOnPath.has(visualIndex);
                         if (showReGachaOnPath) {
-                            // コンプ済みの再抽選時の遷移先アドレスを計算
-                            const r = Math.floor(visualIndex / 3);
-                            const c = visualIndex % 3;
+                            const r_re = Math.floor(visualIndex / 3), c_re = visualIndex % 3;
                             let nextReroll_r, nextReroll_c;
-                            if (c === 0) { // A列で再抽選
-                                nextReroll_r = r + 1; // 次の行
-                                nextReroll_c = 1;     // B列
-                            } else { // B列で再抽選
-                                nextReroll_r = r + 2; // 次の次の行
-                                nextReroll_c = 0;     // A列
-                            }
-                            const nextRerollRollRow = nextReroll_r + 1;
-                            const nextRerollRollCol = String.fromCharCode('A'.charCodeAt(0) + nextReroll_c);
-                            const nextRerollRollAddress = `${nextRerollRollCol}${nextRerollRollRow}`;
-                            let reGachaItemName = reGachaItems[dataIndex];
+                            if (c_re === 0) { nextReroll_r = r_re; nextReroll_c = 1; } // (修正) A列 -> B列 (同じ行)
+                            else { nextReroll_r = r_re + 1; nextReroll_c = 0; } // (修正) B列 -> A列 (次の行)
+                            const nextRerollRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + nextReroll_c)}${nextReroll_r + 1}`;
+                            
+                            const reGachaItemName = reGachaItems[dataIndex];
                             const reGachaItemId = itemNameMap[reGachaItemName];
                             const originalItemName = itemMaster[items[dataIndex]] ? itemMaster[items[dataIndex]].name : "不明";
                             const originalItemId = items[dataIndex];
 
-                            const reGachaLinkParams = {
-                                seed: xorshiftArray[dataIndex + 2], ng: nextGuaranteed, fs: stockAfterThisRoll, lr: reGachaItemId,
-                                comp: true, gachaId: gachaId
-                            };
-                            const originalItemLinkParams = {
-                                seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteed, fs: stockAfterThisRoll, lr: originalItemId,
-                                comp: true, gachaId: gachaId
-                            };
+                            // (修正) リンクに nextGuaranteedParam を使用
+                            const reGachaLinkParams = { seed: xorshiftArray[dataIndex + 2], ng: nextGuaranteedParam, lr: reGachaItemId, comp: true, gachaId: gachaId };
+                            const originalItemLinkParams = { seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteedParam, lr: originalItemId, comp: true, gachaId: gachaId };
 
                             const originalItemContent = `<a href="${generateUrlQuery(originalItemLinkParams)}">${originalItemName}</a>`;
                             const reGachaLink = `<a href="${generateUrlQuery(reGachaLinkParams)}">${nextRerollRollAddress})${reGachaItemName}</a>`;
                             cellContent = `${originalItemContent}<br>${reGachaLink}`;
                         } else {
                             const currentItemId = items[dataIndex];
-                            const href = generateUrlQuery({
-                                seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteed, fs: stockAfterThisRoll, lr: currentItemId,
-                                comp: stockAfterThisRoll === 0, gachaId: gachaId
-                            });
-                            cellContent = itemMaster[currentItemId] ? `<a href="${href}">${itemMaster[currentItemId].name}</a>` : '---';
-                            if (itemMaster[currentItemId] && itemMaster[currentItemId].rarity === 3) {
+                            // (修正) リンクに nextGuaranteedParam を使用
+                            const r_next = Math.floor(visualIndex / 3), c_next = visualIndex % 3;
+                            let next_r, next_c;
+                            if (c_next === 0) { next_r = r_next; next_c = 1; } // (修正) A列 -> B列 (同じ行)
+                            else { next_r = r_next + 1; next_c = 0; } // (修正) B列 -> A列 (次の行)
+                            const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + next_c)}${next_r + 1}`;
+                            
+                            const href = generateUrlQuery({ seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteedParam, lr: currentItemId, comp: true, gachaId: gachaId });
+                            const itemDisplayName = itemMaster[currentItemId] ? itemMaster[currentItemId].name : '---';
+                            cellContent = `<a href="${href}">${nextRollAddress})${itemDisplayName}</a>`; // (修正) 次のセルへのリンク形式に変更
+                            if (itemMaster[currentItemId] && (itemMaster[currentItemId].rarity === 3 || itemMaster[currentItemId].rarity === 4)) {
                                 cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
                             }
                         }
                     } else {
-                        const dataIndex = r * 2 + c;
-                        if (dataIndex < items.length) {
-                            const isReRoll = (dataIndex >= 2 && rarities[dataIndex] === 1 && items[dataIndex] === items[dataIndex - 2] && canReRollRarity1) || (dataIndex >= 5 && rarities[dataIndex] === 1 && canReRollRarity1 && rarities[dataIndex - 3] === 1 && items[dataIndex - 3] === items[dataIndex - 5] && reGachaItems[dataIndex - 3] !== "---" && items[dataIndex] === itemNameMap[reGachaItems[dataIndex - 3]]);
-                            const showReGachaOffPath = (forceReGachaMode && reGachaItems[dataIndex] !== "---") || isReRoll;
-                            if (showReGachaOffPath && reGachaItems[dataIndex] !== "---") {
-                                const next_r = (c === 0) ? r + 1 : r + 2;
-                                const next_c = (c === 0) ? 1 : 0;
-                                const nextRollRow = next_r + 1;
-                                const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + next_c);
-                                const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-                                const reGachaItemName = reGachaItems[dataIndex];
-                                const reGachaItemId = itemNameMap[reGachaItemName];
-                                const href = generateUrlQuery({ seed: xorshiftArray[dataIndex + 2], comp: true, lr: reGachaItemId, gachaId: gachaId });
-                                cellContent = `${itemMaster[items[dataIndex]].name}<br><a href="${href}">${nextRollAddress})${reGachaItemName}</a>`;
-                            } else {
-                                const currentItemId = items[dataIndex];
-                                if (itemMaster[currentItemId]) {
-                                    const href = generateUrlQuery({ seed: xorshiftArray[dataIndex + 1], comp: true, lr: currentItemId, gachaId: gachaId });
-                                    cellContent = `<a href="${href}">${itemMaster[currentItemId].name}</a>`;
-                                    if (itemMaster[currentItemId].rarity === 3) {
-                                        cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
-                                    }
+                        // オフパスのセル (コンプ済みモードでは C列 と、パス生成が追いついていない A/B列)
+                        const offPathDataIndex = visualToDataMap.get(visualIndex); // マップにあれば使う
+                        if(offPathDataIndex !== undefined) { // マップにある (＝パスの一部だが、表示範囲外などで pathSet にないだけ)
+                             const currentItemId = items[offPathDataIndex];
+                             if (itemMaster[currentItemId]) {
+                                const href = generateUrlQuery({ seed: xorshiftArray[offPathDataIndex + 1], comp: true, lr: currentItemId, gachaId: gachaId, ng: 'none' });
+                                cellContent = `<a href="${href}">${itemMaster[currentItemId].name}</a>`;
+                                if (itemMaster[currentItemId].rarity === 3 || itemMaster[currentItemId].rarity === 4) {
+                                    cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
                                 }
-                            }
+                             }
+                        } else if (c < 2) { // パス生成が追いついていない A/B 列
+                             cellContent = "---";
+                        } else { // C列
+                             cellContent = ""; // C列は空白
                         }
                     }
-                    table += `<td class="${classList.join(' ')}">${cellContent}</td>`;
-                    if (c === 0) {
-                        table += `<td></td>`;
-                    }
+                    cells[colName].content = cellContent;
+                    cells[colName].classList = classList;
                 }
-                table += `<td></td>`;
+                table += `<td class="${cells.A.classList.join(' ')}">${cells.A.content}</td>`;
+                table += `<td class="${cells.AG.classList.join(' ')}">${cells.AG.content}</td>`;
+                table += `<td class="${cells.B.classList.join(' ')}">${cells.B.content}</td>`;
+                table += `<td class="${cells.BG.classList.join(' ')}">${cells.BG.content}</td>`;
                 table += '</tr>';
             }
         } else {
             // 従来: ABCG レイアウト
             table = '<table><thead><tr><th class="row-number-header">❐</th><th>A</th><th>B</th><th>C</th><th>G</th></tr></thead><tbody>';
-            for (let r = 0; r < tableRows; r++) { // 指定された行数だけ生成
-                table += `<tr><td>${r + 1}</td>`; // 行番号
-                for (let c = 0; c < 3; c++) { // A, B, C列
-                    const index = r * 3 + c; // セルの通し番号
+            for (let r = 0; r < tableRows; r++) {
+                table += `<tr><td>${r + 1}</td>`;
+                for (let c = 0; c < 3; c++) {
+                    const index = r * 3 + c;
                     if (index >= items.length) { table += `<td>---</td>`; continue; };
 
                     let classList = ['re-gacha-cell'];
                     let cellContent = "---";
-                    
                     const isOnPath = pathSet.has(index);
                     if (isOnPath) {
-                        classList.push('path-cell'); // 背景色を緑にするクラスを追加
+                        classList.push('path-cell');
                     }
 
-                    // 再抽選を表示するかどうかを判定
                     const showReGacha = (forceReGachaMode && reGachaItems[index] !== "---") ||
                                         (isOnPath && reRolledIndicesOnPath.has(index)) ||
                                         (!isOnPath && isReRollTriggeredOffPath(index));
-
-                    if (isfeaturedItemCell[index]) { // --- 目玉セルの処理 ---
-                        const nextIndex = index + 1;
-                        const nextRollRow = Math.floor(nextIndex / 3) + 1;
-                        const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
-                        const nextRollAddress = `${nextRollCol}${nextRollRow}`;
-                        const linkParams = { seed: xorshiftArray[index], gachaId: gachaId };
-
-                        if (isOnPath) {
-                            const pathPosition = path.indexOf(index);
-                            const currentSlotNumber = pathPosition + 1;
-                            const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
-                                ? 0
-                                : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
-                            let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
-                            while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
-                            const featuredSlots = new Set();
-                            for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
-                            const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
-                            
-                            linkParams.ng = nextGuaranteed;
-                            linkParams.fs = stockAfterThisRoll;
-                            linkParams.comp = stockAfterThisRoll === 0;
-                            linkParams.lr = lastItemIdsOnPath[pathPosition];
+                    
+                    // (修正) パス上かどうかに応じて、次の ng, fs, comp, lr パラメータを計算
+                    let nextGuaranteedParam = 'none';
+                    let stockParam = (initialStockForUrl === Infinity) ? 'none' : initialStockForUrl;
+                    let compParam = isFeaturedComplete;
+                    let lrParam = -1; // デフォルト
+                    let pathPosition = -1;
+                    let currentSlotNumber = -1;
+                    
+                    if (isOnPath) {
+                        pathPosition = path.indexOf(index);
+                        currentSlotNumber = pathPosition + 1;
+                        
+                        // ng (next guaranteed)
+                        if (!isNaN(initialGuaranteedRolls)) {
+                            let nextGuaranteed = initialGuaranteedRolls - currentSlotNumber;
+                            while(nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
+                            nextGuaranteedParam = nextGuaranteed;
                         }
-                        cellContent = `<a href="${generateUrlQuery(linkParams)}" class="featuredItem-text">${nextRollAddress})目玉</a>`;
+                        
+                        // fs (featured stock) & comp (complete)
+                        const featuredSlots = new Set();
+                        for (let i = 0; i <= pathPosition; i++) { 
+                             const rollNum = i + 1;
+                             if (isfeaturedItemCell[path[i]] || (!isNaN(initialGuaranteedRolls) && rollNum >= initialGuaranteedRolls && (rollNum - initialGuaranteedRolls) % guaranteedCycle === 0)) {
+                                 featuredSlots.add(path[i]); 
+                             }
+                        }
+                        const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
+                        stockParam = (stockAfterThisRoll === Infinity) ? 'none' : stockAfterThisRoll;
+                        compParam = stockAfterThisRoll === 0;
+                    }
 
-                    } else if (showReGacha) { // --- 再抽選セルの処理 ---
+                    if (isfeaturedItemCell[index]) {
+                        const nextIndex = index + 1;
+                        const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3))}${Math.floor(nextIndex / 3) + 1}`;
+                        if (isOnPath) lrParam = lastItemIdsOnPath[pathPosition]; // 目玉を引く直前のアイテムID
+                        
+                        const linkParams = { seed: xorshiftArray[index], gachaId: gachaId, ng: nextGuaranteedParam, fs: stockParam, comp: compParam, lr: lrParam };
+                        cellContent = `<a href="${generateUrlQuery(linkParams)}" class="featuredItem-text">${nextRollAddress})目玉</a>`;
+                    
+                    } else if (showReGacha) {
                         const nextIndex = index + 4;
-                        const nextRollRow = Math.floor(nextIndex / 3) + 1;
-                        const nextRollCol = String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3));
-                        const nextRollAddress = `${nextRollCol}${nextRollRow}`;
+                        const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3))}${Math.floor(nextIndex / 3) + 1}`;
                         const reGachaItemName = reGachaItems[index];
                         const reGachaItemId = itemNameMap[reGachaItemName];
                         const originalItemName = itemMaster[items[index]] ? itemMaster[items[index]].name : "不明";
                         const originalItemId = items[index];
                         
-                        const reGachaLinkParams = { seed: xorshiftArray[index + 3], lr: reGachaItemId, gachaId: gachaId };
+                        lrParam = reGachaItemId; // 再抽選後のアイテムID
+                        const reGachaLinkParams = { seed: xorshiftArray[index + 3], lr: lrParam, gachaId: gachaId, ng: nextGuaranteedParam, fs: stockParam, comp: compParam };
+                        
+                        // (修正) originalItemLink には lr として originalItemId を渡す
+                        const originalItemLinkParams = { seed: xorshiftArray[index + 2], lr: originalItemId, gachaId: gachaId, ng: nextGuaranteedParam, fs: stockParam, comp: compParam };
+
                         let originalItemContent = originalItemName;
-
-                        if (isOnPath) {
-                            const pathPosition = path.indexOf(index);
-                            const currentSlotNumber = pathPosition + 1;
-                            const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
-                                ? 0
-                                : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
-                            let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
-                            while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
-                            const featuredSlots = new Set();
-                            for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
-                            const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
-                            const isComp = stockAfterThisRoll === 0;
-
-                            // Add path-specific params to the re-roll link
-                            reGachaLinkParams.ng = nextGuaranteed;
-                            reGachaLinkParams.fs = stockAfterThisRoll;
-                            reGachaLinkParams.comp = isComp;
-
-                            // Create params and link for the original item
-                            const originalItemLinkParams = {
-                                seed: xorshiftArray[index + 2],
-                                lr: originalItemId,
-                                gachaId: gachaId,
-                                ng: nextGuaranteed,
-                                fs: stockAfterThisRoll,
-                                comp: isComp
-                            };
-                            originalItemContent = `<a href="${generateUrlQuery(originalItemLinkParams)}">${originalItemName}</a>`;
+                        // (修正) オフパスでもリンクを表示 (ng='none', fs=initial, comp=initial, lr=originalId)
+                        if (!isOnPath) {
+                            originalItemLinkParams.ng = 'none';
+                            originalItemLinkParams.fs = (initialStockForUrl === Infinity) ? 'none' : initialStockForUrl;
+                            originalItemLinkParams.comp = featuredCompleteCheckbox.checked;
                         }
+                        originalItemContent = `<a href="${generateUrlQuery(originalItemLinkParams)}">${originalItemName}</a>`;
                         
                         const reGachaLink = `<a href="${generateUrlQuery(reGachaLinkParams)}">${nextRollAddress})${reGachaItemName}</a>`;
                         cellContent = `${originalItemContent}<br>${reGachaLink}`;
-
-                    } else { // --- 通常セルの処理 ---
+                    
+                    } else {
                         const currentItemId = items[index];
                         if (itemMaster[currentItemId]) {
-                            const linkParams = { seed: xorshiftArray[index + 2], lr: currentItemId, gachaId: gachaId };
-                            if (isOnPath) {
-                                const pathPosition = path.indexOf(index);
-                                const currentSlotNumber = pathPosition + 1;
-                                const numGuaranteedSlotsTotal = (currentSlotNumber < currentGuaranteedRolls)
-                                    ? 0
-                                    : (1 + Math.floor((currentSlotNumber - currentGuaranteedRolls) / guaranteedCycle));
-                                let nextGuaranteed = currentGuaranteedRolls - currentSlotNumber - numGuaranteedSlotsTotal;
-                                while (nextGuaranteed <= 0) { nextGuaranteed += guaranteedCycle; }
-                                const featuredSlots = new Set();
-                                for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
-                                const stockAfterThisRoll = Math.max(0, initialStockForUrl - featuredSlots.size);
-                                linkParams.ng = nextGuaranteed;
-                                linkParams.fs = stockAfterThisRoll;
-                                linkParams.comp = stockAfterThisRoll === 0;
+                            lrParam = currentItemId; // 今回引いたアイテムID
+                            const linkParams = { seed: xorshiftArray[index + 2], lr: lrParam, gachaId: gachaId, ng: nextGuaranteedParam, fs: stockParam, comp: compParam };
+                            if (!isOnPath) { // (修正) オフパスのリンクパラメータ
+                                linkParams.ng = 'none';
+                                linkParams.fs = (initialStockForUrl === Infinity) ? 'none' : initialStockForUrl;
+                                linkParams.comp = featuredCompleteCheckbox.checked;
                             }
-                            cellContent = `<a href="${generateUrlQuery(linkParams)}">${itemMaster[currentItemId].name}</a>`;
+                            
+                            const nextIndex = index + 3; // (修正) 通常の次のインデックス
+                            const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + (nextIndex % 3))}${Math.floor(nextIndex / 3) + 1}`;
+                            
+                            cellContent = `<a href="${generateUrlQuery(linkParams)}">${nextRollAddress})${itemMaster[currentItemId].name}</a>`; // (修正) 次のセルへのリンク形式
                             if (itemMaster[currentItemId].rarity === 3) {
                                 cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
                             }
                         }
                     }
 
-                    // 確定枠の表示を追加 (パス上のみ)
                     if (isOnPath && !isFeaturedComplete) {
-                        const pathPosition = path.indexOf(index); // 経路上で何番目か
-                        const currentRollNumber = pathPosition + 1; // 現在が何回目のロールか
-                        if (currentRollNumber === currentGuaranteedRolls) {
+                        // (修正) 確定枠の判定 (initialGuaranteedRolls を使用)
+                        if (!isNaN(initialGuaranteedRolls) && currentSlotNumber >= initialGuaranteedRolls && (currentSlotNumber - initialGuaranteedRolls) % guaranteedCycle === 0) {
+                            
+                            // (修正) ストック計算を再利用 (stockParam はこのロール後の値なので使えない)
                             const featuredSlots = new Set();
-                            for (let i = 0; i <= pathPosition; i++) { if (isfeaturedItemCell[path[i]] || (i + 1 === currentGuaranteedRolls)) featuredSlots.add(path[i]); }
+                            for (let i = 0; i <= pathPosition; i++) {
+                                const rollNum = i + 1;
+                                if (isfeaturedItemCell[path[i]] || (!isNaN(initialGuaranteedRolls) && rollNum >= initialGuaranteedRolls && (rollNum - initialGuaranteedRolls) % guaranteedCycle === 0)) {
+                                    featuredSlots.add(path[i]); 
+                                }
+                            }
                             const stockAfterGuaranteed = Math.max(0, initialStockForUrl - featuredSlots.size);
-                            const linkHref = generateUrlQuery({
-                                seed: (path[pathPosition] > 0) ? xorshiftArray[path[pathPosition] - 1] : parseInt(seedInput.value, 10),
-                                ng: guaranteedCycle, // 確定枠の次は周期分後
-                                fs: stockAfterGuaranteed,
-                                lr: lastItemIdsOnPath[pathPosition],
-                                comp: stockAfterGuaranteed === 0,
-                                gachaId: gachaId
+                            const lrForGuaranteedLink = lastItemIdsOnPath[pathPosition];
+                            
+                            // (修正) リンクの ng パラメータを guaranteedCycle (次の確定枠までの回数) に
+                            const linkHref = generateUrlQuery({ 
+                                seed: (path[pathPosition] > 0) ? xorshiftArray[path[pathPosition] - 1] : parseInt(seedInput.value, 10), 
+                                ng: guaranteedCycle, 
+                                fs: (stockAfterGuaranteed === Infinity ? 'none' : stockAfterGuaranteed), 
+                                lr: lrForGuaranteedLink, 
+                                comp: stockAfterGuaranteed === 0, 
+                                gachaId: gachaId 
                             });
-                            const prefix = `<a href="${linkHref}" class="featuredItem-text">目玉(確定)</a>/`;
-                            cellContent = prefix + cellContent; // 表示内容の先頭に「目玉(確定)」リンクを追加
+                            cellContent = `<a href="${linkHref}" class="featuredItem-text">目玉(確定)</a>/` + cellContent;
                         }
                     }
                     table += `<td class="${classList.join(' ')}">${cellContent}</td>`;
                 }
 
-                // G列の処理
                 let gCellClass = 're-gacha-cell';
                 let gCellContent = '';
-                if (r < 10) { // 1〜10行目：10連ガチャの結果
+                if (r < 10) {
                     gCellClass += ' g-ten-pull-highlight';
                     gCellContent = tenPullRows[r] || '';
                     if (gCellContent && gCellContent.includes('目玉')) {
                         gCellContent = `<span class="featuredItem-text">${gCellContent}</span>`;
                     } else if (gCellContent) {
-                        const extractedItemName = gCellContent;
+                        const extractedItemName = gCellContent.split('<br>').pop().replace(/.*\) /, '');
                         const extractedItemId = itemNameMap[extractedItemName];
-                        if (extractedItemId !== undefined && itemMaster[extractedItemId] && itemMaster[extractedItemId].rarity === 3) {
+                        if (extractedItemId !== undefined && itemMaster[extractedItemId] && (itemMaster[extractedItemId].rarity === 3 || itemMaster[extractedItemId].rarity === 4)) { // (修正) レアリティ4も
                             gCellContent = `<span class="featuredItem-text">${gCellContent}</span>`;
                         }
                     }
-                } else if (r >= 10 && r < 20) { // 11〜20行目：単発N回後の目玉期待数
+                } else if (r >= 10 && r < 20) {
                     gCellContent = expectedFeaturedItemsArray[r - 9];
-                } else {
-                    gCellContent = '';
                 }
                 table += `<td class="${gCellClass}">${gCellContent}</td>`;
                 table += '</tr>';
@@ -1268,14 +1360,12 @@
         }
         
         table += '</tbody></table>';
-        resultTableContainer.innerHTML = table; // 生成したテーブルをHTMLに挿入
+        resultTableContainer.innerHTML = table;
 
-        // 再抽選モード切り替えボタン（❐）の表示とイベント設定
         const rowHeaderCell = document.querySelector('th.row-number-header');
-        rowHeaderCell.textContent = forceReGachaMode ? '☑' : '❐'; // モードに応じてアイコンを変更
-        rowHeaderCell.addEventListener('click', toggleReGachaMode); // クリックでモードを切り替えるイベントを追加
+        rowHeaderCell.textContent = forceReGachaMode ? '☑' : '❐';
+        rowHeaderCell.addEventListener('click', toggleReGachaMode);
     }
-
     // --- ページ読み込み時の初回実行 ---
     runSimulationAndDisplay();
 </script>
