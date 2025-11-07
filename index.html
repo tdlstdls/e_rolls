@@ -932,7 +932,7 @@
         // --- 表示処理 ---
         // (修正) guaranteedRollsForTable には input の value (文字列) をそのまま渡す
         let guaranteedRollsForTable = guaranteedRollsInput.value;
-        createAndDisplayTable(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, guaranteedRollsForTable, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows);
+        createAndDisplayTable(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, guaranteedRollsForTable, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds);
     
         // --- URLとUIの更新 ---
         const shouldHaveTx = urlTx && !hideSeedInput;
@@ -1024,7 +1024,7 @@
     }
 
     // 計算結果を元にHTMLのテーブルを生成して表示する関数
-    function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows) {
+    function createAndDisplayTable(items, rarities, isfeaturedItemCell, path, tenPullRows, reGachaItems, gachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds) {
         const gacha = gachaMaster[gachaId];
         const guaranteedCycle = gacha.guaranteedCycle || 30;
         const isFeaturedComplete = featuredCompleteCheckbox.checked;
@@ -1159,16 +1159,50 @@
                             cellContent = `${originalItemContent}<br>${reGachaLink}`;
                         } else {
                             const currentItemId = items[dataIndex];
-                            // (修正) リンクに nextGuaranteedParam を使用
-                            const r_next = Math.floor(visualIndex / 3), c_next = visualIndex % 3;
-                            let next_r, next_c;
-                            if (c_next === 0) { next_r = r_next; next_c = 1; } // (修正) A列 -> B列 (同じ行)
-                            else { next_r = r_next + 1; next_c = 0; } // (修正) B列 -> A列 (次の行)
-                            const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + next_c)}${next_r + 1}`;
-                            
-                            const href = generateUrlQuery({ seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteedParam, lr: currentItemId, comp: true, gachaId: gachaId });
                             const itemDisplayName = itemMaster[currentItemId] ? itemMaster[currentItemId].name : '---';
-                            cellContent = `<a href="${href}">${nextRollAddress})${itemDisplayName}</a>`; // (修正) 次のセルへのリンク形式に変更
+                            const pathPosition = path.indexOf(visualIndex);
+
+                            let useFallback = true;
+                            if (pathPosition !== -1 && pathPosition + 2 < path.length) {
+                                const visualIndex_p1 = path[pathPosition + 1];
+                                const dataIndex_p1 = visualToDataMap.get(visualIndex_p1);
+
+                                const visualIndex_p2 = path[pathPosition + 2];
+                                const dataIndex_p2 = visualToDataMap.get(visualIndex_p2);
+
+                                if (dataIndex_p1 !== undefined && dataIndex_p2 !== undefined && dataIndex_p2 > 0) {
+                                    const isReRoll_p1 = reRolledIndicesOnPath.has(visualIndex_p1);
+                                    const lr_for_p2 = isReRoll_p1 ? reGachaItemIds[dataIndex_p1] : items[dataIndex_p1];
+                                    const seed_for_p2 = xorshiftArray[dataIndex_p2 - 1];
+
+                                    if (lr_for_p2 !== undefined && seed_for_p2 !== undefined) {
+                                        useFallback = false;
+                                        let nextGuaranteedParam_p2 = 'none';
+                                        if (!isNaN(initialGuaranteedRolls)) {
+                                            let nextGuaranteed = initialGuaranteedRolls - (pathPosition + 3);
+                                            while (nextGuaranteed <= 0) {
+                                                nextGuaranteed += currentGuaranteedCycle;
+                                            }
+                                            nextGuaranteedParam_p2 = nextGuaranteed;
+                                        }
+
+                                        const href = generateUrlQuery({ seed: seed_for_p2, ng: nextGuaranteedParam_p2, lr: lr_for_p2, comp: true, gachaId: gachaId });
+                                        cellContent = `<a href="${href}">${itemDisplayName}</a>`;
+                                    }
+                                }
+                            }
+
+                            if (useFallback) {
+                                const r_next = Math.floor(visualIndex / 3), c_next = visualIndex % 3;
+                                let next_r, next_c;
+                                if (c_next === 0) { next_r = r_next; next_c = 1; }
+                                else { next_r = r_next + 1; next_c = 0; }
+                                const nextRollAddress = `${String.fromCharCode('A'.charCodeAt(0) + next_c)}${next_r + 1}`;
+                                
+                                const href = generateUrlQuery({ seed: xorshiftArray[dataIndex + 1], ng: nextGuaranteedParam, lr: currentItemId, comp: true, gachaId: gachaId });
+                                cellContent = `<a href="${href}">${nextRollAddress})${itemDisplayName}</a>`;
+                            }
+                            
                             if (itemMaster[currentItemId] && (itemMaster[currentItemId].rarity === 3 || itemMaster[currentItemId].rarity === 4)) {
                                 cellContent = `<span class="featuredItem-text">${cellContent}</span>`;
                             }
