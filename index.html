@@ -274,11 +274,11 @@
             name: '(旧)ハロウィン', // ガチャ名
             featuredItemRate: 600, // 目玉アイテムの排出率 (0.01%単位)
             featuredItemStock: 5, // 目玉アイテムの在庫数
-            guaranteedCycle: 30, // 確定枠の周期
-            uberGuaranteedFlag: false, // 目玉なし（コンプ済み時）超激レア確定処理の有無
-            legendGuaranteedFlag: false, // 目玉なし（コンプ済み時）伝説レア確定処理の有無
-            rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 }, // 各レアリティの排出率
-            pool: [0, 2, 3, 4, 5, 10, 11, 12, 14] // このガチャから排出される可能性のあるアイテムIDのリスト
+            guaranteedCycle: 30,
+            uberGuaranteedFlag: false,
+            legendGuaranteedFlag: false,
+            rarityRates: { '0': 2000, '1': 5000, '2': 3000, '3': 0, '4': 0 },
+            pool: [0, 2, 3, 4, 5, 10, 11, 12, 14]
         },
         '42': {
             name: '1.1億DL記念',
@@ -312,9 +312,9 @@
         }
     };
 
-    const itemMaster = { // アイテムIDと名前、レアリティの対応表
-        0: { name: "スピダ", rarity: 1 }, // キーがアイテムID
-        2: { name: "ネコボン", rarity: 2 }, // name: アイテム名, rarity: レアリティID
+    const itemMaster = {
+        0: { name: "スピダ", rarity: 1 },
+        2: { name: "ネコボン", rarity: 2 },
         3: { name: "ニャンピュ", rarity: 1 },
         4: { name: "おかめ", rarity: 2 },
         5: { name: "スニャ", rarity: 2 },
@@ -332,79 +332,67 @@
         831: { name: "スカーフにゃんこ", rarity: 3 }
     };
     
-    // アイテム名からIDを逆引き（逆検索）するためのマップを事前に作成
     const itemNameMap = Object.fromEntries(
         Object.entries(itemMaster).map(([id, { name }]) => [name, parseInt(id, 10)])
     );
     
-    // gachaMasterのデータを使いやすく整理する関数
     function setupGachaRarityItems() {
-        for (const gachaId in gachaMaster) { // 全てのガチャ設定をループ
-            const gacha = gachaMaster[gachaId]; // 個別のガチャ設定を取得
-            if (gacha && gacha.pool) { // ガチャ設定と排出アイテムリストがあれば
-                const pool = gacha.pool; // 排出アイテムリスト
-                const rarityItems = { '0': [], '1': [], '2': [], '3': [], '4': [] }; // レアリティごとにアイテムIDを分類する箱
+        for (const gachaId in gachaMaster) {
+            const gacha = gachaMaster[gachaId];
+            if (gacha && gacha.pool) {
+                const pool = gacha.pool;
+                const rarityItems = { '0': [], '1': [], '2': [], '3': [], '4': [] };
 
-                for (const itemId of pool) { // 排出アイテムを一つずつチェック
-                    const item = itemMaster[itemId]; // アイテムのマスターデータを取得
-                    if (item && rarityItems[item.rarity] !== undefined) { // アイテムが存在し、対応するレアリティの箱があれば
-                        rarityItems[item.rarity].push(itemId); // そのレアリティの箱にアイテムIDを追加
+                for (const itemId of pool) {
+                    const item = itemMaster[itemId];
+                    if (item && rarityItems[item.rarity] !== undefined) {
+                        rarityItems[item.rarity].push(itemId);
                     }
                 }
 
-                // 各レアリティのアイテムリストをIDの昇順でソートする（計算結果を安定させるため）
-                for (const rarity in rarityItems) { // 各レアリティの箱をループ
-                    rarityItems[rarity].sort((a, b) => a - b); // IDの小さい順に並び替え
+                for (const rarity in rarityItems) {
+                    rarityItems[rarity].sort((a, b) => a - b);
                 }
 
-                gacha.rarityItems = rarityItems; // 整理したデータを元のガチャ設定に追加
+                gacha.rarityItems = rarityItems;
             }
         }
     }
 
-    // --- HTML要素の取得 ---
-    // JavaScriptでHTMLの各部品を操作するために、あらかじめ部品を変数に格納しておきます。
-    const seedInput = document.getElementById('seedInput'); // SEED入力欄
-    const guaranteedRollsInput = document.getElementById('guaranteedRollsInput'); // 「next guaranteed」ドロップダウン
-    const featuredStockInput = document.getElementById('featuredStockInput'); // 「目玉残数」ドロップダウン
-    const executeButton = document.getElementById('executeButton'); // 「更新」ボタン
-    const featuredCompleteCheckbox = document.getElementById('featuredCompleteCheckbox'); // 「コンプ済み」チェックボックス
-    const output = document.getElementById('output'); // （現在未使用）デバッグ情報などを表示するための要素
-    const guaranteedControl = document.getElementById('guaranteedControl'); // 「next guaranteed」を囲む要素
-    const stockControl = document.getElementById('stockControl'); // 「目玉残数」を囲む要素
-    const seedRow = document.getElementById('seedRow'); // SEED入力欄と更新ボタンの行
-    const seedLinkContainer = document.getElementById('seedLinkContainer'); // 「SEED入力」リンクを囲む要素
-    const showSeedInputLink = document.getElementById('showSeedInputLink'); // 「SEED入力」リンク
-    const copySeedLink = document.getElementById('copySeedLink'); // 「Copy SEED」リンク
-    const toggleSeedDisplayButton = document.getElementById('toggleSeedDisplayButton'); // SEED表示ボタン
-    const toggleProcessDisplayButton = document.getElementById('toggleProcessDisplayButton'); // 計算過程を表示ボタン
-    const processDisplayContainer = document.getElementById('process-display-container'); // 計算過程表示コンテナ
+    const seedInput = document.getElementById('seedInput');
+    const guaranteedRollsInput = document.getElementById('guaranteedRollsInput');
+    const featuredStockInput = document.getElementById('featuredStockInput');
+    const executeButton = document.getElementById('executeButton');
+    const featuredCompleteCheckbox = document.getElementById('featuredCompleteCheckbox');
+    const output = document.getElementById('output');
+    const guaranteedControl = document.getElementById('guaranteedControl');
+    const stockControl = document.getElementById('stockControl');
+    const seedRow = document.getElementById('seedRow');
+    const seedLinkContainer = document.getElementById('seedLinkContainer');
+    const showSeedInputLink = document.getElementById('showSeedInputLink');
+    const copySeedLink = document.getElementById('copySeedLink');
+    const toggleSeedDisplayButton = document.getElementById('toggleSeedDisplayButton');
+    const toggleProcessDisplayButton = document.getElementById('toggleProcessDisplayButton');
+    const processDisplayContainer = document.getElementById('process-display-container');
 
-    const resultTableContainer = document.getElementById('result-table-container'); // 結果テーブル全体を囲むコンテナ
-    let forceReGachaMode = false; // 再抽選の表示を強制的に切り替えるためのフラグ
+    const resultTableContainer = document.getElementById('result-table-container');
+    let forceReGachaMode = false;
 
 
-    // --- 初期化処理 ---
     setupGachaRarityItems();
 
-    // 「next guaranteed」ドロップダウンは runSimulationAndDisplay 内で動的に生成されます。
-
-    // 目玉残数ドロップダウンを生成する関数
     function populateFeaturedStockInput(gachaId, preferredValue = 'none') {
-        const gacha = gachaMaster[gachaId]; // 指定されたガチャIDの情報を取得
-        if (!gacha) return; // ガチャ情報がなければ何もしない
-        const stock = gacha.featuredItemStock; // 目玉の在庫数を取得
+        const gacha = gachaMaster[gachaId];
+        if (!gacha) return;
+        const stock = gacha.featuredItemStock;
 
-        // 既存の選択肢を一旦すべてクリア
         featuredStockInput.innerHTML = '';
 
-        // 「-」（未設定）の選択肢を追加
         const unsetOption = document.createElement('option');
         unsetOption.value = 'none';
         unsetOption.textContent = '-';
         featuredStockInput.appendChild(unsetOption);
 
-        // 1から在庫数までの選択肢を追加
         for (let i = 1; i <= stock; i++) {
             const option = document.createElement('option');
             option.value = i;
@@ -412,18 +400,13 @@
             featuredStockInput.appendChild(option);
         }
 
-        // URLパラメータや前の状態を引き継いで、値を設定する
         if (preferredValue && preferredValue !== 'none' && featuredStockInput.querySelector(`option[value="${preferredValue}"]`)) {
             featuredStockInput.value = preferredValue;
         } else {
-            featuredStockInput.value = 'none'; // 該当がなければ「-」にする
+            featuredStockInput.value = 'none';
         }
     }
 
-    // --- イベントリスナーの設定 ---
-    // ユーザーの操作（クリックなど）に応じて特定の処理を実行するように設定します。
-
-    // 「更新」ボタンがクリックされたときの処理
     executeButton.addEventListener('click', () => {
         runSimulationAndDisplay({
             hideSeedInput: true,
@@ -431,17 +414,14 @@
         });
     });
 
-    // 「next guaranteed」ドロップダウンが変更されたときの処理
     guaranteedRollsInput.addEventListener('change', () => {
         runSimulationAndDisplay({ uiOverrides: { guaranteedRolls: guaranteedRollsInput.value } });
     });
 
-    // 「目玉残数」ドロップダウンが変更されたときの処理
     featuredStockInput.addEventListener('change', () => {
         runSimulationAndDisplay({ uiOverrides: { featuredStock: featuredStockInput.value } });
     });
 
-    // 「コンプ済み」チェックボックスの初期化と変更時の処理
     featuredCompleteCheckbox.addEventListener('change', () => {
         runSimulationAndDisplay({
             hideSeedInput: true,
@@ -449,35 +429,30 @@
         });
     });
 
-    // 「Copy SEED」リンクがクリックされたときの処理
     copySeedLink.addEventListener('click', (event) => {
-        event.preventDefault(); // リンク本来のページ遷移動作をキャンセル
+        event.preventDefault();
 
-        const currentParams = new URLSearchParams(window.location.search); // 現在のURLのパラメータを取得
-        const seedToCopy = currentParams.get('seed'); // 'seed'パラメータの値を取得
-        if (!seedToCopy) return; // SEEDがなければ何もしない
+        const currentParams = new URLSearchParams(window.location.search);
+        const seedToCopy = currentParams.get('seed');
+        if (!seedToCopy) return;
 
-        if (!navigator.clipboard) { // ブラウザがクリップボード機能に対応しているかチェック
+        if (!navigator.clipboard) {
             alert('お使いのブラウザはクリップボードAPIをサポートしていません。');
             return;
         }
 
-        // クリップボードにSEED値を書き込む
         navigator.clipboard.writeText(seedToCopy).then(() => {
-            // 成功した場合
-            const originalText = copySeedLink.textContent; // 元のテキストを保存
-            copySeedLink.textContent = 'Copied!'; // テキストを「Copied!」に変更
-            setTimeout(() => { // 1.5秒後に
-                copySeedLink.textContent = originalText; // 元のテキストに戻す
+            const originalText = copySeedLink.textContent;
+            copySeedLink.textContent = 'Copied!';
+            setTimeout(() => {
+                copySeedLink.textContent = originalText;
             }, 1500);
         }).catch(err => {
-            // 失敗した場合
             console.error('クリップボードへのコピーに失敗しました: ', err);
             alert('クリップボードへのコピーに失敗しました。');
         });
     });
 
-    // 「SEED表示」ボタンがクリックされたときの処理
     toggleSeedDisplayButton.addEventListener('click', () => {
         const currentParams = new URLSearchParams(window.location.search);
         const currentDisplaySeed = currentParams.get('displaySeed') || '0';
@@ -492,10 +467,7 @@
         runSimulationAndDisplay({ uiOverrides: { displayProcess: newDisplayProcess } });
     });
 
-    // --- ヘルパー関数 ---
-    // URLのクエリパラメータ文字列を生成する
     function generateUrlQuery(params) {
-        // パラメータ、URL、デフォルトの順でガチャIDを取得
         const currentUrlParams = new URLSearchParams(window.location.search);
         const urlGachaId = currentUrlParams.get('gacha');
         const currentGachaId = params.gachaId || urlGachaId || '45';
@@ -507,17 +479,15 @@
         if (params.lr !== undefined && params.lr !== -1 && params.lr !== null) query += `&lr=${params.lr}`;
         if (params.comp) query += `&comp=true`;
         if (params.tx) query += `&tx=${params.tx}`;
-        if (params.roll !== undefined && params.roll !== 100) query += `&roll=${params.roll}`; // rollが100（デフォルト）でない場合のみ追加
+        if (params.roll !== undefined && params.roll !== 100) query += `&roll=${params.roll}`;
         if (params.displaySeed === '1') query += '&displaySeed=1';
         if (params.displayProcess === '1') query += '&displayProcess=1';
         return query;
     }
 
-    // --- 計算過程表示関数 ---
     function displayCalculationProcess(gacha, initialSeed, isFeaturedComplete, thresholds, tableRows, guaranteedRollsValue) {
         let processHtml = '<h3>計算過程</h3>';
 
-        // 各種計算を行うヘルパー関数
         const getRarityFromRoll = (roll) => {
             if (roll < thresholds['0']) return { id: 0, name: 'ノーマル' };
             if (roll < thresholds['1']) return { id: 1, name: 'レア' };
@@ -545,7 +515,6 @@
 
 
         if (isFeaturedComplete) {
-            // コンプ済みの計算過程
             processHtml += '<h4>ルートの計算</h4>';
             let routeSeed = initialSeed;
             for (let i = 1; i <= 10; i++) {
@@ -557,15 +526,12 @@
                 
                 let detail = `Roll${i}) ${seed1} % 10000 = ${rarityRoll} / ${rarity.name} / ${seed2} % ${gacha.rarityItems[rarity.id]?.length || 0} = ${seed2 % (gacha.rarityItems[rarity.id]?.length || 1)} / ${item.name}`;
                 
-                routeSeed = seed2; // 次のループのためのSEEDを更新
+                routeSeed = seed2;
 
                 if (rarity.id === 1 && gacha.rarityItems[1]?.length >= 2) {
-                     // 仮に再抽選が発生した場合の計算も表示（実際には前のアイテムに依存するが、ここでは単純化）
                     const seed3 = xorshift32(seed2);
                     const reRollItem = getReRollItem(seed3, 1, item.id);
                     detail += ` / (再抽選の場合) ${seed3} % ${gacha.rarityItems[1].length - 1} = ${seed3 % (gacha.rarityItems[1].length - 1)} / ${reRollItem.name}`;
-                    // 実際のシミュレーションでは再抽選が発生した場合、SEEDは1つ多く消費される
-                    // routeSeed = seed3;
                 }
                 processHtml += `<p>${detail}</p>`;
             }
@@ -578,16 +544,14 @@
                 let seedA = seedA_next;
                 let seedB = seedB_next;
 
-                // A列
                 const sA1 = seedA;
                 const rRollA = sA1 % 10000;
                 const rarityA = getRarityFromRoll(rRollA);
                 const sA2 = xorshift32(sA1);
                 const itemA = getItemFromPool(sA2, rarityA.id);
                 processHtml += `<p>A${i}) ${sA1} % 10000 = ${rRollA} / ${rarityA.name} / ${sA2} % ${gacha.rarityItems[rarityA.id]?.length || 0} = ${sA2 % (gacha.rarityItems[rarityA.id]?.length || 1)} / ${itemA.name}</p>`;
-                seedA_next = xorshift32(sA2); // 次の行のA列の開始SEED
+                seedA_next = xorshift32(sA2);
 
-                // AG列
                 const uberRate = gacha.uberGuaranteedFlag ? gacha.rarityRates['3'] : 0;
                 const legendRate = gacha.legendGuaranteedFlag ? gacha.rarityRates['4'] : 0;
                 const totalGuaranteedRate = uberRate + legendRate;
@@ -598,16 +562,14 @@
                     processHtml += `<p>AG${i}) ${sA1} % ${totalGuaranteedRate} = ${rRollAG} / ${rarityAG.name} / ${sA2} % ${gacha.rarityItems[rarityAG.id]?.length || 0} = ${sA2 % (gacha.rarityItems[rarityAG.id]?.length || 1)} / ${itemAG.name}</p>`;
                 }
 
-                // B列
                 const sB1 = seedB;
                 const rRollB = sB1 % 10000;
                 const rarityB = getRarityFromRoll(rRollB);
                 const sB2 = xorshift32(sB1);
                 const itemB = getItemFromPool(sB2, rarityB.id);
                 processHtml += `<p>B${i}) ${sB1} % 10000 = ${rRollB} / ${rarityB.name} / ${sB2} % ${gacha.rarityItems[rarityB.id]?.length || 0} = ${sB2 % (gacha.rarityItems[rarityB.id]?.length || 1)} / ${itemB.name}</p>`;
-                seedB_next = xorshift32(sB2); // 次の行のB列の開始SEED
+                seedB_next = xorshift32(sB2);
                 
-                // BG列
                  if (totalGuaranteedRate > 0) {
                     const rRollBG = sB1 % totalGuaranteedRate;
                     const rarityBG = rRollBG < uberRate ? {id: 3, name: '超激レア'} : {id: 4, name: '伝説レア'};
@@ -617,7 +579,6 @@
             }
 
         } else {
-            // 未コンプの計算過程
             processHtml += '<h4>ルートの計算</h4>';
             let routeSeed = initialSeed;
             for (let i = 1; i <= 10; i++) {
@@ -640,7 +601,6 @@
                         const seed4 = xorshift32(seed3);
                         const reRollItem = getReRollItem(seed4, 1, item.id);
                         detail += ` / (再抽選の場合) ${seed4} % ${gacha.rarityItems[1].length - 1} = ${seed4 % (gacha.rarityItems[1].length - 1)} / ${reRollItem.name}`;
-                        // routeSeed = seed4;
                     }
                 }
                 processHtml += `<p>${detail}</p>`;
@@ -656,7 +616,6 @@
                 let seedB = seedB_next;
                 let seedC = seedC_next;
 
-                // A列
                 const sA1 = seedA;
                 const fRollA = sA1 % 10000;
                 const isFeaturedA = fRollA < gacha.featuredItemRate;
@@ -674,7 +633,6 @@
                 }
                 processHtml += `<p>${detailA}</p>`;
                 
-                // B列
                 const sB1 = seedB;
                 const fRollB = sB1 % 10000;
                 const isFeaturedB = fRollB < gacha.featuredItemRate;
@@ -692,7 +650,6 @@
                 }
                 processHtml += `<p>${detailB}</p>`;
 
-                // C列
                 const sC1 = seedC;
                 const fRollC = sC1 % 10000;
                 const isFeaturedC = fRollC < gacha.featuredItemRate;
@@ -714,7 +671,7 @@
             processHtml += '<h4>G（10連）の計算</h4>';
             let gSeed = initialSeed;
             let gGuaranteedRoll = parseInt(guaranteedRollsValue, 10);
-            let gFeaturedStock = gacha.featuredItemStock; // This is a simplified view
+            let gFeaturedStock = gacha.featuredItemStock;
 
             let featuredHitSeeds = [];
             let tempSeed = gSeed;
@@ -762,12 +719,9 @@
         processDisplayContainer.innerHTML = processHtml;
     }
 
-    // --- メイン処理関数 ---
-    // シミュレーションを実行し、結果を画面に表示する一連の流れを管理します。
     function runSimulationAndDisplay(options = {}) {
         const { hideSeedInput = false, uiOverrides = {} } = options;
 
-        // --- URLパラメータの読み込みとUIの同期 ---
         const params = new URLSearchParams(window.location.search);
         const urlSeed = params.get('seed');
         const urlGuaranteed = params.get('ng');
@@ -780,7 +734,6 @@
         const urlDisplaySeed = params.get('displaySeed');
         const urlDisplayProcess = params.get('displayProcess');
 
-        // 状態を決定（UI操作によるオーバーライド > URLパラメータ）
         const seedValueStr = uiOverrides.seed !== undefined ? uiOverrides.seed : (urlSeed || seedInput.value);
         let isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true');
         const guaranteedRollsValue = uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : (urlGuaranteed || 'none');
@@ -788,12 +741,11 @@
         const displaySeedValue = uiOverrides.displaySeed !== undefined ? uiOverrides.displaySeed : (urlDisplaySeed || '0');
         const displayProcessValue = uiOverrides.displayProcess !== undefined ? uiOverrides.displayProcess : (urlDisplayProcess || '0');
 
-        const tableRows = parseInt(urlRoll, 10) || 100; // rollパラメータがなければ100行
-        // 決定した状態でUIを同期
+        const tableRows = parseInt(urlRoll, 10) || 100;
         seedInput.value = seedValueStr;
         featuredCompleteCheckbox.checked = isFeaturedComplete;
 
-        const selectedGachaId = urlGachaId || '45'; // URLからガチャIDを取得、なければデフォルトに
+        const selectedGachaId = urlGachaId || '45';
         const seedValue = parseInt(seedInput.value, 10);
         
         let lastRollItemId = null;
@@ -825,7 +777,6 @@
             featuredCompleteControl.classList.remove('hidden-control');
         }
 
-        // --- 'displaySeed=0' (main simulation) logic ---
         const rates = gacha.rarityRates;
         const thresholds = {
             '0': rates['0'], '1': rates['0'] + rates['1'], '2': rates['0'] + rates['1'] + rates['2'],
@@ -941,12 +892,11 @@
                 }
             }
 
-            // G-column simulation remains the same as it uses the main simulation arrays
             const tenPullResults = new Array(10).fill(null);
             const tenPullRarities = new Array(10).fill(-1);
             const isFeaturedSlot = new Array(10).fill(false);
             let seedOffsetForG = 0;
-            const firstGuaranteedRollsForG = parseInt(guaranteedRollsValue, 10) || 30; // Use guaranteedRollsValue for G-col sim
+            const firstGuaranteedRollsForG = parseInt(guaranteedRollsValue, 10) || 30;
             const isGuaranteedInTenPull = firstGuaranteedRollsForG > 0 && firstGuaranteedRollsForG <= 10;
             const guaranteedSlotIndex = isGuaranteedInTenPull ? firstGuaranteedRollsForG - 1 : -1;
             
@@ -1021,9 +971,11 @@
                 for (let i = 0; i < start; i++) {
                     const pIndex = currentPath[i]; const rollNumber = i + 1;
                     if (isfeaturedItemCell[pIndex]) featuredSlotsBefore.add(pIndex);
-                    if (!isNaN(initialGuaranteedRollsForG) && rollNumber >= initialGuaranteedRollsForG && (rollNumber - initialGuaranteedRollsForG) % gacha.guaranteedCycle === 0) featuredSlotsBefore.add(pIndex);
+                    if (!isNaN(initialGuaranteedRollsForG) && rollNumber >= initialGuaranteedRollsForG && (rollNumber - initialGuaranteedRollsForG) % gacha.guaranteedCycle === 0) {
+                         featuredSlots.add(pIndex); 
+                     }
                 }
-                const stockAfterSingle = Math.max(0, featuredStockLimit - Math.min(featuredSlotsBefore.size, featuredStockLimit));
+                const stockAfterSingle = Math.max(0, featuredStockLimit - featuredSlots.size);
                 let guaranteedRollsForThisTenPull = 'none';
                 if (!isNaN(initialGuaranteedRollsForG)) {
                     let nextG = initialGuaranteedRollsForG - start;
@@ -1051,13 +1003,12 @@
                 expectedFeaturedItemsArray[start] = finalFeaturedSlotsInThisTenPull.filter(Boolean).length;
             }
 
-            createAndDisplayTableOriginal(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, guaranteedRollsValue, featuredStockLimit, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds, displaySeedValue);
+            createAndDisplayTableOriginal(items, rarities, isfeaturedItemCell, currentPath, tenPullResults, reGachaItems, selectedGachaId, expectedFeaturedItemsArray, guaranteedRollsValue, featuredStockLimit, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds, displaySeedValue, seedValue);
 
-        } else { // displaySeed === '1'
+        } else {
             createAndDisplayTableSeedView(gacha, tableRows, seedValue, isFeaturedComplete, thresholds);
         }
 
-        // --- UI and URL Update ---
         const shouldHaveTx = urlTx && !hideSeedInput;
         const newUrlQuery = generateUrlQuery({
             seed: seedValue, ng: guaranteedRollsValue, fs: featuredStockValue, lr: urlLastRoll,
@@ -1131,13 +1082,11 @@
         }
     }
 
-    // 再抽選の強制表示モードを切り替える関数
     function toggleReGachaMode() {
-        forceReGachaMode = !forceReGachaMode; // フラグを反転
-        runSimulationAndDisplay(); // シミュレーションを再実行
+        forceReGachaMode = !forceReGachaMode;
+        runSimulationAndDisplay();
     }
 
-    // --- テーブル生成関数 ---
     function createAndDisplayTableSeedView(gacha, tableRows, initialSeed, isFeaturedComplete, thresholds) {
         let table = '<table>';
         let header1 = '<tr><th class="row-number-header" rowspan="2">❐</th>';
@@ -1145,8 +1094,8 @@
         
         if (isFeaturedComplete) {
             header1 += '<th colspan="3">A</th><th rowspan="2">AG</th><th colspan="3">B</th><th rowspan="2">BG</th>';
-            header2 += '<th>S1</th><th>S2</th><th>Item</th>'; // A
-            header2 += '<th>S1</th><th>S2</th><th>Item</th>'; // B
+            header2 += '<th>S1</th><th>S2</th><th>Item</th>';
+            header2 += '<th>S1</th><th>S2</th><th>Item</th>';
         } else {
             const mainHeaders = ['A', 'B', 'C'];
             mainHeaders.forEach(h => { header1 += `<th colspan="4">${h}</th>`; });
@@ -1172,14 +1121,12 @@
             let nextColumnStartSeeds = [];
 
             if (isFeaturedComplete) {
-                // A, AG
                 const simResultA = simulateCellForSeedView(columnStartSeeds[0], -1, gacha, true, thresholds);
                 nextColumnStartSeeds.push(simResultA.nextSeed);
                 simResultA.seeds.forEach(s => rowHtml += `<td>${s}</td>`);
                 rowHtml += `<td>${simResultA.itemContent}</td>`;
                 rowHtml += `<td>${simResultA.guaranteedItemContent}</td>`;
 
-                // B, BG
                 const simResultB = simulateCellForSeedView(columnStartSeeds[1], -1, gacha, true, thresholds);
                 nextColumnStartSeeds.push(simResultB.nextSeed);
                 simResultB.seeds.forEach(s => rowHtml += `<td>${s}</td>`);
@@ -1198,7 +1145,7 @@
 
                     rowHtml += `<td>${simResult.itemContent}</td>`;
                 });
-                rowHtml += `<td></td>`; // G column
+                rowHtml += `<td></td>`;
             }
             
             columnStartSeeds = nextColumnStartSeeds;
@@ -1210,7 +1157,7 @@
         resultTableContainer.innerHTML = table;
         
         const rowHeaderCell = document.querySelector('th.row-number-header');
-        if (rowHeaderCell) { rowHeaderCell.textContent = '❐'; /* No re-gacha toggle in this view */ }
+        if (rowHeaderCell) { rowHeaderCell.textContent = '❐'; }
     }
     
     function simulateCellForSeedView(startSeed, lastItemId, gacha, isFeaturedComplete, thresholds) {
@@ -1219,7 +1166,7 @@
         let itemId = -1;
         let itemContent = '---';
         let guaranteedItemContent = '';
-        let isReRoll = false; // Re-roll logic is simplified/ignored for this view as requested
+        let isReRoll = false;
         let isFeatured = false;
 
         const pushSeed = (seed) => {
@@ -1245,7 +1192,6 @@
                 itemId = itemPool[s2 % itemPool.length];
             }
 
-            // Guaranteed Uber/Legend calculation
             if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                 const uberRate = gacha.uberGuaranteedFlag ? gacha.rarityRates['3'] : 0;
                 const legendRate = gacha.legendGuaranteedFlag ? gacha.rarityRates['4'] : 0;
@@ -1262,14 +1208,13 @@
                 }
             }
 
-        } else { // Not complete
+        } else {
             const s1 = currentSeed;
             currentSeed = pushSeed(currentSeed);
 
             if (s1 % 10000 < gacha.featuredItemRate) {
                 isFeatured = true;
                 itemContent = `<span class="featuredItem-text">目玉</span>`;
-                // The next row's seed is the one after s1.
             } else {
                 const s2 = currentSeed;
                 currentSeed = pushSeed(currentSeed);
@@ -1287,7 +1232,6 @@
                 if (itemPool && itemPool.length > 0) {
                     itemId = itemPool[s3 % itemPool.length];
                 }
-                // The next row's seed is the one after s3.
             }
         }
         
@@ -1305,7 +1249,7 @@
     }
 
 
-    function createAndDisplayTableOriginal(items, rarities, isfeaturedItemCell, path, tenPullResults, reGachaItems, gachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds, displaySeed) {
+    function createAndDisplayTableOriginal(items, rarities, isfeaturedItemCell, path, tenPullResults, reGachaItems, gachaId, expectedFeaturedItemsArray, currentGuaranteedRolls, initialStockForUrl, reRolledIndicesOnPath, visualToDataMap, canReRollRarity1, lastItemIdsOnPath, tableRows, reGachaItemIds, displaySeed, initialSeed) {
         const gacha = gachaMaster[gachaId];
         const isFeaturedComplete = featuredCompleteCheckbox.checked;
         const initialGuaranteedRolls = parseInt(currentGuaranteedRolls, 10);
@@ -1333,8 +1277,7 @@
         let table;
 
         if (isFeaturedComplete) {
-            const params = new URLSearchParams(window.location.search);
-            const initialSeed = parseInt(params.get('seed'), 10);
+
             const thresholds = {
                 '0': gacha.rarityRates['0'], '1': gacha.rarityRates['0'] + gacha.rarityRates['1'],
                 '2': gacha.rarityRates['0'] + gacha.rarityRates['1'] + gacha.rarityRates['2'],
@@ -1346,15 +1289,13 @@
             
             let seedA = xorshift32(initialSeed);
             let seedB = xorshift32(xorshift32(initialSeed));
-            let lastItemIdA = -1; // A列の前のアイテムIDを追跡
-            let lastItemIdB = -1; // B列の前のアイテムIDを追跡
+            let lastItemIdA = -1;
+            let lastItemIdB = -1;
 
             for (let r = 0; r < tableRows; r++) {
-                // --- A列とAG列の計算 ---
                 const sA1 = seedA;
                 const sA2 = xorshift32(sA1);
                 
-                // 通常アイテム
                 const rarityRollA = sA1 % 10000;
                 let rarityIdA;
                 if (rarityRollA < thresholds['0']) { rarityIdA = 0; }
@@ -1370,7 +1311,6 @@
 
                 if (itemPoolA && itemPoolA.length > 0) {
                     itemIdA = itemPoolA[sA2 % itemPoolA.length];
-                    // 再抽選チェック
                     if (rarityIdA === 1 && itemPoolA.length >= 2 && lastItemIdA === itemIdA) {
                         const sA3 = xorshift32(sA2);
                         const reRollPoolA = itemPoolA.filter(id => id !== itemIdA);
@@ -1382,7 +1322,6 @@
                 if(itemIdA !== -1) itemContentA = itemMaster[itemIdA]?.name || '不明';
 
 
-                // 確定枠アイテム
                 let guaranteedItemContentA = '';
                 if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                     const uberRate = gacha.uberGuaranteedFlag ? gacha.rarityRates['3'] : 0;
@@ -1401,11 +1340,9 @@
                 seedA = nextSeedA;
 
 
-                // --- B列とBG列の計算 ---
                 const sB1 = seedB;
                 const sB2 = xorshift32(sB1);
 
-                // 通常アイテム
                 const rarityRollB = sB1 % 10000;
                 let rarityIdB;
                 if (rarityRollB < thresholds['0']) { rarityIdB = 0; }
@@ -1421,7 +1358,6 @@
 
                 if (itemPoolB && itemPoolB.length > 0) {
                     itemIdB = itemPoolB[sB2 % itemPoolB.length];
-                     // 再抽選チェック
                     if (rarityIdB === 1 && itemPoolB.length >= 2 && lastItemIdB === itemIdB) {
                         const sB3 = xorshift32(sB2);
                         const reRollPoolB = itemPoolB.filter(id => id !== itemIdB);
@@ -1432,7 +1368,6 @@
                 lastItemIdB = itemIdB;
                 if(itemIdB !== -1) itemContentB = itemMaster[itemIdB]?.name || '不明';
 
-                // 確定枠アイテム
                 let guaranteedItemContentB = '';
                  if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                     const uberRate = gacha.uberGuaranteedFlag ? gacha.rarityRates['3'] : 0;
@@ -1450,7 +1385,6 @@
                 }
                 seedB = nextSeedB;
 
-                // --- 行のHTMLを生成 ---
                 table += `<tr><td>${r + 1}</td><td>${itemContentA}</td><td>${guaranteedItemContentA}</td><td>${itemContentB}</td><td>${guaranteedItemContentB}</td></tr>`;
             }
         } else {
@@ -1557,7 +1491,6 @@
         }
         return '---';
     }
-    // --- ページ読み込み時の初回実行 ---
     runSimulationAndDisplay();
 </script>
 </body>
