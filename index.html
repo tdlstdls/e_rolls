@@ -971,11 +971,10 @@
                 for (let i = 0; i < start; i++) {
                     const pIndex = currentPath[i]; const rollNumber = i + 1;
                     if (isfeaturedItemCell[pIndex]) featuredSlotsBefore.add(pIndex);
-                    if (!isNaN(initialGuaranteedRollsForG) && rollNumber >= initialGuaranteedRollsForG && (rollNumber - initialGuaranteedRollsForG) % gacha.guaranteedCycle === 0) {
-                         featuredSlots.add(pIndex); 
-                     }
-                }
-                const stockAfterSingle = Math.max(0, featuredStockLimit - featuredSlots.size);
+                                         if (!isNaN(initialGuaranteedRollsForG) && rollNumber >= initialGuaranteedRollsForG && (rollNumber - initialGuaranteedRollsForG) % gacha.guaranteedCycle === 0) {
+                                             featuredSlotsBefore.add(pIndex); 
+                                         }                }
+                const stockAfterSingle = Math.max(0, featuredStockLimit - featuredSlotsBefore.size);
                 let guaranteedRollsForThisTenPull = 'none';
                 if (!isNaN(initialGuaranteedRollsForG)) {
                     let nextG = initialGuaranteedRollsForG - start;
