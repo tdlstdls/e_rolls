@@ -1311,14 +1311,9 @@
 
                 if (itemPoolA && itemPoolA.length > 0) {
                     itemIdA = itemPoolA[sA2 % itemPoolA.length];
-                    if (rarityIdA === 1 && itemPoolA.length >= 2 && lastItemIdA === itemIdA) {
-                        const sA3 = xorshift32(sA2);
-                        const reRollPoolA = itemPoolA.filter(id => id !== itemIdA);
-                        itemIdA = reRollPoolA[sA3 % reRollPoolA.length];
-                        nextSeedA = sA3;
-                    }
+
                 }
-                lastItemIdA = itemIdA;
+
                 if(itemIdA !== -1) itemContentA = itemMaster[itemIdA]?.name || '不明';
 
 
@@ -1358,14 +1353,9 @@
 
                 if (itemPoolB && itemPoolB.length > 0) {
                     itemIdB = itemPoolB[sB2 % itemPoolB.length];
-                    if (rarityIdB === 1 && itemPoolB.length >= 2 && lastItemIdB === itemIdB) {
-                        const sB3 = xorshift32(sB2);
-                        const reRollPoolB = itemPoolB.filter(id => id !== itemIdB);
-                        itemIdB = reRollPoolB[sB3 % reRollPoolB.length];
-                        nextSeedB = sB3;
-                    }
+
                 }
-                lastItemIdB = itemIdB;
+
                 if(itemIdB !== -1) itemContentB = itemMaster[itemIdB]?.name || '不明';
 
                 let guaranteedItemContentB = '';
