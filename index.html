@@ -697,12 +697,7 @@
         let itemName = itemMaster[itemId]?.name || '---';
         if (itemId !== -1) {
             const href = generateLink(s_slot); // 確定枠は s_slot が最後のSEED
-            let nameWithLink = `<a href="${href}">${itemName}</a>`;
-            if (itemMaster[itemId]?.rarity >= 3) {
-                itemName = `<span class="featuredItem-text">${nameWithLink}</span>`;
-            } else {
-                itemName = nameWithLink;
-            }
+            itemName = `<a href="${href}">${itemName}</a>`; // Always link, but no special styling
         }
 
         if (displaySeed === '0') {
