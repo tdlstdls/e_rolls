@@ -264,7 +264,41 @@
         197: { name: "100万XP", rarity: 4 }, 184: { name: "ミスターニンジャ", rarity: 3 }, 375: { name: "記念ネコ", rarity: 3 }, 381: { name: "ねこ農家", rarity: 3 },
         689: { name: "石の上にも10年ネコ", rarity: 3 }, 726: { name: "ネコメダル王", rarity: 3 }, 831: { name: "スカーフにゃんこ", rarity: 3 }
     };
+
+    const DEFAULT_PARAMS = {
+        gacha: '45', // Assuming '45' is the latest/default gacha based on the provided master data
+        seed: '123456789',
+        ng: 'none',
+        fs: 'none',
+        lr: null,
+        comp: false,
+        tx: false,
+        roll: 100,
+        displaySeed: '0' // デフォルト値
+    };
+
     // --- ユーティリティ関数 ---
+
+    /**
+     * URLクエリパラメーターを生成します。
+     * displaySeed='0' の場合はパラメーターから除外します。
+     * @param {Object} p - パラメーターオブジェクト
+     * @returns {string} - クエリ文字列 (?...)
+     */
+    function generateUrlQuery(p) {
+        const query = new URLSearchParams();
+        for (const key in p) {
+            // displaySeed=0 の場合にクエリから除外する
+            if (key === 'displaySeed' && p[key] === DEFAULT_PARAMS.displaySeed) {
+                continue; 
+            }
+            if (p[key] !== null && p[key] !== undefined) {
+                 query.set(key, p[key]);
+            }
+        }
+        return '?' + query.toString();
+    }
+    
     function xorshift32(seed) {
         let x = seed;
         x ^= x << 13; x ^= x >>> 17; x ^= x << 15;
@@ -800,7 +834,7 @@
         const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
         const rarityDivisor = uberRate + legendRate;
         if (rarityDivisor === 0) {
-            return (displaySeed === '1') ? '<td colspan="3">レート設定なし</td>' : '<td>レート設定なし</td>';
+            return (displaySeed === '1') ? `<td colspan="${displaySeed === '1' ? 3 : 1}">レート設定なし</td>` : `<td>レート設定なし</td>`;
         }
         const s_rarity_idx = startSeedIndex;
         const s_slot_idx = startSeedIndex + 1;
@@ -1102,39 +1136,130 @@
             createAndDisplayUncompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params);
         }
     }
+    
+    // --- ▼ 修正 (1): runSimulationAndDisplay 関数を更新 ▼ ---
     // --- メイン関数 ---
     let activeGachaId;
     function runSimulationAndDisplay(options = {}) {
         const { hideSeedInput = false, uiOverrides = {} } = options;
         const params = new URLSearchParams(window.location.search);
+        let needsRedirect = false;
+        
+        const gachaIds = Object.keys(gachaMaster);
+        const latestGachaId = gachaIds.reduce((a, b) => parseInt(a) > parseInt(b) ? a : b);
+
+        // デフォルト値で置き換えるパラメーターの定義
+        const paramDefaults = {
+            gacha: latestGachaId,
+            seed: DEFAULT_PARAMS.seed,
+            ng: DEFAULT_PARAMS.ng,
+            fs: DEFAULT_PARAMS.fs,
+            comp: DEFAULT_PARAMS.comp.toString(), // 'false'
+            tx: DEFAULT_PARAMS.tx ? '1' : '0', // '0'
+            roll: DEFAULT_PARAMS.roll.toString(),
+            displaySeed: DEFAULT_PARAMS.displaySeed
+        };
+        
+        // 'lr' は特殊。null がデフォルトなので、'undefined' や 'null' 文字列の場合のみ削除する。
+        const lrValue = params.get('lr');
+        if (lrValue === 'undefined' || lrValue === 'null') {
+             params.delete('lr');
+             needsRedirect = true;
+        }
+
+        // 'tx' を '1'/'0' に正規化 ( 'true' -> '1', 'false' -> '0' )
+        const txValue = params.get('tx');
+        if (txValue === 'true') {
+            params.set('tx', '1');
+            needsRedirect = true;
+        } else if (txValue === 'false') {
+            params.set('tx', '0');
+            needsRedirect = true;
+        }
+
+        // 'comp' を 'true'/'false' に正規化 ( '1' -> 'true', '0' -> 'false' )
+        const compValue = params.get('comp');
+        if (compValue === '1') {
+            params.set('comp', 'true');
+            needsRedirect = true;
+        } else if (compValue === '0') {
+             params.set('comp', 'false');
+             needsRedirect = true;
+        }
+        
+        // デフォルト値適用のパラメーターをチェック
+        for (const paramName in paramDefaults) {
+            const currentValue = params.get(paramName);
+            // パラメーターがない(null)、または無効な文字列 ('undefined', 'null', 空白) の場合
+            const isMissingOrInvalid = (currentValue === null || currentValue === 'undefined' || currentValue === 'null' || currentValue === '');
+
+            if (isMissingOrInvalid) {
+                // ▼ 修正 (1) ここから: displaySeed=0 のリダイレクトループを回避するロジック
+                if (paramName === 'displaySeed' && paramDefaults[paramName] === '0') {
+                    // displaySeedがデフォルトの'0'であり、URLに存在しない場合、
+                    // generateUrlQueryによってURLから削除されることが期待されるため、
+                    // リダイレクトをトリガーしない。
+                    continue; 
+                }
+                // ▲ 修正 (1) ここまで
+
+                params.set(paramName, paramDefaults[paramName]);
+                needsRedirect = true;
+            }
+        }
+        
+        // gacha ID がマスターに存在しない場合もデフォルトに
+        if (!gachaMaster[params.get('gacha')]) {
+             params.set('gacha', latestGachaId);
+             needsRedirect = true;
+        }
+
+        // リダイレクト処理
+        // uiOverrides がある場合は、ユーザーが操作中（ボタン押下など）なのでリダイレクトしない
+        if (needsRedirect && Object.keys(uiOverrides).length === 0) {
+            // displaySeed=0 の場合、リダイレクト先のURLからdisplaySeedを削除するために、
+            // URLSearchParamsではなく、generateUrlQueryを使ってリダイレクトします。
+            const redirectParams = {};
+            for (const [key, value] of params.entries()) {
+                redirectParams[key] = value;
+            }
+            window.location.search = generateUrlQuery(redirectParams).substring(1); // '?'を除去
+            return;
+        }
+
         const urlSeed = params.get('seed');
         const urlGuaranteed = params.get('ng');
         const urlFeaturedStock = params.get('fs');
         const urlLastRoll = params.get('lr');
         const urlComp = params.get('comp');
-        const gachaIds = Object.keys(gachaMaster);
-        const latestGachaId = gachaIds.reduce((a, b) => parseInt(a) > parseInt(b) ? a : b);
-        const urlGachaId = params.get('gacha') || latestGachaId;
+        const urlGachaId = params.get('gacha'); // リダイレクト処理により、この時点では存在するはず
         activeGachaId = urlGachaId;
         const urlTx = params.get('tx');
         const urlRoll = params.get('roll');
-        const urlDisplaySeed = params.get('displaySeed');
+        
+        // リダイレクト回避ロジックを適用したので、ここでは params.get('displaySeed') が null のままであり得る
+        const urlDisplaySeed = params.get('displaySeed'); 
 
-        const seedValueStr = uiOverrides.seed !== undefined ? uiOverrides.seed : (urlSeed || document.getElementById('seedInput').value);
-        let isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true');
-        const displaySeedValue = uiOverrides.displaySeed !== undefined ? uiOverrides.displaySeed : (urlDisplaySeed || '0');
+        // デフォルト値の適用 (リダイレクトされなかった場合や、uiOverrides がない場合のフォールバック)
+        const seedValueStr = uiOverrides.seed !== undefined ? String(uiOverrides.seed) : (urlSeed || DEFAULT_PARAMS.seed);
+        let isFeaturedComplete = uiOverrides.isComplete !== undefined ? uiOverrides.isComplete : (urlComp === 'true' || DEFAULT_PARAMS.comp);
+        // urlDisplaySeed が null の場合（URLにない場合）、DEFAULT_PARAMS.displaySeed ('0') を使用する
+        const displaySeedValue = uiOverrides.displaySeed !== undefined ? uiOverrides.displaySeed : (urlDisplaySeed || DEFAULT_PARAMS.displaySeed);
 
         document.getElementById('seedInput').value = seedValueStr;
         document.getElementById('featuredCompleteCheckbox').checked = isFeaturedComplete;
         const seedValue = parseInt(seedValueStr, 10);
-        let lastRollItemId = urlLastRoll ? parseInt(urlLastRoll, 10) : null;
+        let lastRollItemId = urlLastRoll ? parseInt(urlLastRoll, 10) : DEFAULT_PARAMS.lr;
         if (isNaN(seedValue)) {
             document.getElementById('output').textContent = '有効な数値を入力してください。';
             return;
         }
         const gacha = gachaMaster[urlGachaId];
         if (!gacha) {
-            document.getElementById('output').textContent = '無効なガチャIDです。';
+            // リダイレクト処理でカバーされているはずだが、フェイルセーフ
+            document.getElementById('output').textContent = '無効なガチャIDです。デフォルトにリダイレクトします。';
+            params.set('gacha', latestGachaId);
+            window.location.search = params.toString();
             return;
         }
         const featuredCompleteControl = document.getElementById('featuredCompleteCheckbox').parentElement;
@@ -1150,12 +1275,14 @@
             '0': rates['0'], '1': rates['0'] + rates['1'], '2': rates['0'] + rates['1'] + rates['2'],
             '3': rates['0'] + rates['1'] + rates['2'] + rates['3'], '4': 10000
         };
-        const tableRows = parseInt(urlRoll, 10) || 100;
+        const tableRows = parseInt(urlRoll, 10) || DEFAULT_PARAMS.roll;
         
         createAndDisplaySeedViewNew(seedValue, gacha, tableRows, isFeaturedComplete, thresholds, lastRollItemId, displaySeedValue, params);
         
         updateUIAndURL(options);
     }
+    // --- ▲ 修正 (1) 完了 ▲ ---
+
     // --- UI更新とイベントリスナー ---
     function updateUIAndURL(options = {}) {
         const { hideSeedInput = false, uiOverrides = {} } = options;
@@ -1165,22 +1292,21 @@
         const urlGachaId = params.get('gacha') || latestGachaId;
         const gacha = gachaMaster[urlGachaId];
         
-        // --- ▼ 修正 (6): 'ng' の値が 'none' でも URL に反映されるように uiOverrides を考慮 ▼ ---
+        
         const currentNG = document.getElementById('guaranteedRollsInput').value;
         const newNG = uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : currentNG;
         
         const newUrlQuery = generateUrlQuery({
-            gachaId: urlGachaId,
+            gacha: urlGachaId, // Use 'gacha' key for generateUrlQuery
             seed: document.getElementById('seedInput').value,
-            ng: newNG, // 修正
-            fs: uiOverrides.featuredStock !== undefined ? uiOverrides.featuredStock : document.getElementById('featuredStockInput').value, // 修正
+            ng: newNG,
+            fs: uiOverrides.featuredStock !== undefined ? uiOverrides.featuredStock : document.getElementById('featuredStockInput').value,
             lr: params.get('lr'),
-            comp: document.getElementById('featuredCompleteCheckbox').checked,
-            tx: params.get('tx') && !hideSeedInput ? '1' : undefined,
-            roll: params.get('roll') || 100,
-            displaySeed: params.get('displaySeed')
+            comp: document.getElementById('featuredCompleteCheckbox').checked ? 'true' : 'false',
+            tx: params.get('tx') && !hideSeedInput ? '1' : (DEFAULT_PARAMS.tx ? '1' : '0'), 
+            roll: params.get('roll') || DEFAULT_PARAMS.roll, 
+            displaySeed: uiOverrides.displaySeed !== undefined ? uiOverrides.displaySeed : (params.get('displaySeed') || DEFAULT_PARAMS.displaySeed)
         });
-        // --- ▲ 修正 (6) 完了 ▲ ---
         
         window.history.replaceState({ path: newUrlQuery }, '', `${window.location.pathname}${newUrlQuery}`);
         const seedRow = document.getElementById('seedRow');
@@ -1190,12 +1316,17 @@
         const guaranteedControl = document.getElementById('guaranteedControl');
         const legendDisplay = document.getElementById('legendDisplay'); // Get legend element
         
-        const linkParams = Object.fromEntries(params.entries());
-        linkParams.gacha = urlGachaId;
-        linkParams.tx = '1';
+        const linkParams = {};
+        for (const [key, value] of params.entries()) {
+            linkParams[key] = value;
+        }
+        linkParams.gacha = urlGachaId; // Ensure gacha is always set to the active gacha ID
+        linkParams.tx = '1'; // Always show seed input for this link
+        linkParams.displaySeed = params.get('displaySeed') || DEFAULT_PARAMS.displaySeed; // Ensure displaySeed is passed to link
         showSeedInputLink.href = generateUrlQuery(linkParams);
 
-        if (params.get('tx') && !hideSeedInput) {
+        // (runSimulationAndDisplay で 'tx' のデフォルト値が '0' に設定されていることを前提)
+        if ((params.get('tx') === '1') && !hideSeedInput) {
             seedRow.classList.remove('hidden-control');
             seedLinkContainer.classList.add('hidden-control');
         } else {
@@ -1204,14 +1335,17 @@
         }
         const isFeaturedComplete = document.getElementById('featuredCompleteCheckbox').checked;
         
-        populateFeaturedStockInput(urlGachaId, params.get('fs') || 'none'); // 'none' を明示
+        populateFeaturedStockInput(urlGachaId, params.get('fs') || DEFAULT_PARAMS.fs); // Use DEFAULT_PARAMS.fs
 
+        // (runSimulationAndDisplay で 'ng' のデフォルト値が 'none' に設定されていることを前提)
+        const urlNG = params.get('ng') || DEFAULT_PARAMS.ng;
+        
         if (isFeaturedComplete) {
             stockControl.classList.add('hidden-control');
             if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                 guaranteedControl.classList.remove('hidden-control');
                 legendDisplay.classList.remove('hidden-control'); // Show legend
-                populateGuaranteedRolls(10, newNG); // 修正
+                populateGuaranteedRolls(10, uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : urlNG);
             } else {
                 guaranteedControl.classList.add('hidden-control');
                 legendDisplay.classList.add('hidden-control'); // Hide legend
@@ -1220,7 +1354,7 @@
             stockControl.classList.remove('hidden-control');
             guaranteedControl.classList.remove('hidden-control');
             legendDisplay.classList.remove('hidden-control'); // Show legend
-            populateGuaranteedRolls(gacha.guaranteedCycle || 30, newNG); // 修正
+            populateGuaranteedRolls(gacha.guaranteedCycle || 30, uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : urlNG);
         }
         const lastRollDisplay = document.getElementById('lastRollDisplay');
         const lr = params.get('lr');
@@ -1230,36 +1364,18 @@
             lastRollDisplay.textContent = '';
         }
     }
-    function generateUrlQuery(params) {
-        // --- ▼ 修正 (2): gachaId と gacha の両方に対応 ▼ ---
-        let query = `?gacha=${params.gachaId || params.gacha}`;
-        // --- ▲ 修正 (2) 完了 ▲ ---
-        if (params.seed !== undefined) query += `&seed=${params.seed}`;
-        if (params.ng !== undefined && params.ng !== 'none') query += `&ng=${params.ng}`;
-        if (params.fs !== undefined && params.fs !== 'none' && params.fs !== Infinity) query += `&fs=${params.fs}`;
-        if (params.lr !== undefined && params.lr !== null) query += `&lr=${params.lr}`;
-        if (params.comp) query += `&comp=true`;
-        if (params.tx) query += `&tx=${params.tx}`;
-        if (params.roll !== undefined && params.roll !== 100) query += `&roll=${params.roll}`;
-        if (params.displaySeed !== undefined && params.displaySeed !== '0') query += `&displaySeed=${params.displaySeed}`;
-        return query;
-    }
 
     function generateItemLink(newSeed, newItemId) {
         const currentParams = new URLSearchParams(window.location.search);
         const paramsForQuery = {};
         // Inherit from URL
         for (const [key, value] of currentParams.entries()) {
-            if (key === 'gacha') {
-                paramsForQuery.gachaId = value;
-            } else {
-                paramsForQuery[key] = value;
-            }
+            paramsForQuery[key] = value;
         }
 
         // If gacha is not in the URL, use the active one.
-        if (!paramsForQuery.gachaId) {
-            paramsForQuery.gachaId = activeGachaId;
+        if (!paramsForQuery.gacha) { // Check for 'gacha' key directly
+            paramsForQuery.gacha = activeGachaId;
         }
 
         // Override with new values for the link
