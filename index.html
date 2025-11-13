@@ -353,11 +353,6 @@
     // --- 表示ロジック ---
     // --- 未コンプガチャの計算と表示 ---
     function calculateUncompletedCell(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params) {
-        const generateLink = (seed) => {
-            const currentParams = new URLSearchParams(window.location.search);
-            currentParams.set('seed', seed);
-            return `?${currentParams.toString()}`;
-        };
         // This function calculates the result for a single cell and returns its HTML and the resulting item ID.
         // Guard against running out of seeds
         if (startSeedIndex + 4 >= SEED.length) {
@@ -372,7 +367,7 @@
         if (featuredFlag) {
             finalItemId = -2; // 目玉
             const nextSeedIndex = startSeedIndex + 1;
-            const href = generateLink(s1); // 目玉は s1 が最後のSEED
+            const href = generateItemLink(s1, -2); // 目玉は s1 が最後のSEED
             sub5 = `${getAddressString(nextSeedIndex)})<span class="featuredItem-text"><a href="${href}">目玉</a></span>`;
             if (displaySeed === '1') {
                 const sub1 = `(S${startSeedIndex})${s1}<br>${s1 % 10000}<br>${featuredFlag}`;
@@ -399,6 +394,8 @@
             let reRollLine = '';
             let reRollItemNameForDisplay = null;
             let reRollSeed = null;
+            let reRollItemId;
+
 
             if (reRollFlag) {
                 const s_reroll_idx = startSeedIndex + 3;
@@ -406,7 +403,7 @@
                 const reRollPool = pool.filter(id => id !== lastItemId);
                 if (reRollPool.length > 0) {
                     const reRollSlot = reRollSeed % reRollPool.length;
-                    const reRollItemId = reRollPool[reRollSlot];
+                    reRollItemId = reRollPool[reRollSlot];
                     reRollItemNameForDisplay = itemMaster[reRollItemId]?.name || '---';
                     finalItemId = reRollItemId;
                 }
@@ -416,7 +413,7 @@
                     const s_reroll_idx = startSeedIndex + 3;
                     reRollSeed = SEED[s_reroll_idx];
                     const reRollSlot = reRollSeed % reRollPool.length;
-                    const reRollItemId = reRollPool[reRollSlot];
+                    reRollItemId = reRollPool[reRollSlot];
                     reRollItemNameForDisplay = itemMaster[reRollItemId]?.name || '---';
                 }
             }
@@ -424,7 +421,7 @@
             // Styling & Linking
             let styledRegularName = regularItemName;
             if (regularItemId !== -1) {
-                const href = generateLink(s3); // 通常抽選は s3 が最後のSEED
+                const href = generateItemLink(s3, regularItemId); // 通常抽選は s3 が最後のSEED
                 let nameWithLink = `<a href="${href}">${regularItemName}</a>`;
                 if (itemMaster[regularItemId]?.rarity >= 3) {
                     styledRegularName = `<span class="featuredItem-text">${nameWithLink}</span>`;
@@ -435,8 +432,7 @@
             const regularLine = styledRegularName;
 
             if (reRollItemNameForDisplay) {
-                const href = generateLink(reRollSeed); // 再抽選は reRollSeed (s4) が最後のSEED
-                const reRollItemId = Object.keys(itemMaster).find(key => itemMaster[key].name === reRollItemNameForDisplay);
+                const href = generateItemLink(reRollSeed, reRollItemId); // 再抽選は reRollSeed (s4) が最後のSEED
                 let styledRerollName = `<a href="${href}">${reRollItemNameForDisplay}</a>`;
                 if (reRollItemId && itemMaster[reRollItemId]?.rarity >= 3) {
                     styledRerollName = `<span class="featuredItem-text">${styledRerollName}</span>`;
@@ -550,11 +546,6 @@
                         const row_num = Math.floor(zeroBasedIndex / 3) + 1;
                         return `${col_char}${row_num}`;
                     };
-                    const generateLink = (seed) => {
-                        const currentParams = new URLSearchParams(window.location.search);
-                        currentParams.set('seed', seed);
-                        return `?${currentParams.toString()}`;
-                    };
 
                     let table = '<table style="table-layout: fixed;"><thead>';
                     let header1 = `<tr><th rowspan="${displaySeed === '1' ? 2 : 1}" id="forceRerollToggle" class="col-no" style="cursor: pointer;">${forceRerollMode ? '☑' : '□'}</th>`;
@@ -616,7 +607,7 @@
 
                         if (is_featured) {
                             finalItemId = -2;
-                            const href = generateLink(s_feat); // G列目玉は s_feat が最後のSEED
+                            const href = generateItemLink(s_feat, -2); // G列目玉は s_feat が最後のSEED
                             g_sub5 = `<span class="featuredItem-text"><a href="${href}">目玉</a></span>`;
                         } else {
                             const s_rarity_idx = gSeedCounter;
@@ -636,6 +627,8 @@
                             const reRollFlag = canReRoll && regularItemId !== -1 && regularItemId === lastGuaranteedItemId;
                             let reRollItemName = null;
                             let reRollSeed = null;
+                            let reRollItemId;
+
 
                             if (reRollFlag) {
                                 const s_reroll_idx = gSeedCounter + 2;
@@ -644,7 +637,7 @@
                                 const reRollPoolSize = reRollPool.length;
                                 if (reRollPoolSize > 0) {
                                     const reRollSlot = reRollSeed % reRollPoolSize;
-                                    const reRollItemId = reRollPool[reRollSlot];
+                                    reRollItemId = reRollPool[reRollSlot];
                                     reRollItemName = reRollItemId !== -1 ? itemMaster[reRollItemId]?.name : '---';
                                     finalItemId = reRollItemId;
                                 }
@@ -654,7 +647,7 @@
 
                             let styledRegularName = regularItemName;
                             if(regularItemId !== -1) {
-                                const href = generateLink(s_slot); // G列通常は s_slot が最後のSEED
+                                const href = generateItemLink(s_slot, regularItemId); // G列通常は s_slot が最後のSEED
                                 let nameWithLink = `<a href="${href}">${regularItemName}</a>`;
                                 if(itemMaster[regularItemId]?.rarity >= 3) {
                                     styledRegularName = `<span class="featuredItem-text">${nameWithLink}</span>`;
@@ -665,8 +658,7 @@
 
                             let reRollLine = '';
                             if(reRollItemName) {
-                                const href = generateLink(reRollSeed); // G列再抽選は reRollSeed が最後のSEED
-                                const reRollItemId = Object.keys(itemMaster).find(key => itemMaster[key].name === reRollItemName);
+                                const href = generateItemLink(reRollSeed, reRollItemId); // G列再抽選は reRollSeed が最後のSEED
                                 let styledRerollName = `<a href="${href}">${reRollItemName}</a>`;
                                 if (reRollItemId && itemMaster[reRollItemId]?.rarity >= 3) {
                                     styledRerollName = `<span class="featuredItem-text">${styledRerollName}</span>`;
@@ -680,9 +672,9 @@
                             } else {
                                 const destinationSeedIndex = is_featured ? (s_feat_idx + 1) : gSeedCounter;
                                 const destinationAddress = getAddressStringForG(destinationSeedIndex);
-                                const finalHref = generateLink(reRollSeed || s_slot);
-                                let finalStyledName = `<a href="${finalHref}">${finalItemNameG}</a>`;
                                 const finalItemIdForStyle = Object.keys(itemMaster).find(key => itemMaster[key].name === finalItemNameG);
+                                const finalHref = generateItemLink(reRollSeed || s_slot, finalItemIdForStyle);
+                                let finalStyledName = `<a href="${finalHref}">${finalItemNameG}</a>`;
                                 if(finalItemIdForStyle && itemMaster[finalItemIdForStyle]?.rarity >= 3) {
                                      finalStyledName = `<span class="featuredItem-text">${finalStyledName}</span>`;
                                 }
@@ -714,12 +706,6 @@
                     document.getElementById('result-table-container').innerHTML = table;
                 }    // --- コンプ済みガチャの計算と表示 ---
     function calculateCompletedCell(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params) {
-        const generateLink = (seed) => {
-            const currentParams = new URLSearchParams(window.location.search);
-            currentParams.set('seed', seed);
-            return `?${currentParams.toString()}`;
-        };
-
         let finalItemId = -1;
         let html;
         let sub4;
@@ -749,25 +735,27 @@
         
         let reRollLine = '';
         let reRollItemNameForDisplay = null;
+        let reRollItemId;
+
 
         if (reRollFlag) {
             const reRollPool = pool.filter(id => id !== lastItemId);
             if (reRollPool.length > 0) {
-                const reRollItemId = reRollPool[s3 % reRollPool.length];
+                reRollItemId = reRollPool[s3 % reRollPool.length];
                 reRollItemNameForDisplay = itemMaster[reRollItemId]?.name || '---';
                 finalItemId = reRollItemId;
             }
         } else if (forceRerollMode && canReRoll) {
             const reRollPool = pool.filter(id => id !== regularItemId);
             if (reRollPool.length > 0) {
-                const reRollItemId = reRollPool[s3 % reRollPool.length];
+                reRollItemId = reRollPool[s3 % reRollPool.length];
                 reRollItemNameForDisplay = itemMaster[reRollItemId]?.name || '---';
             }
         }
         
         let styledRegularName = regularItemName;
         if (regularItemId !== -1) {
-            const href = generateLink(s2); // 通常(再抽選前)は s2 (S_slot) が最後のSEED
+            const href = generateItemLink(s2, regularItemId); // 通常(再抽選前)は s2 (S_slot) が最後のSEED
             let nameWithLink = `<a href="${href}">${regularItemName}</a>`;
             if (itemMaster[regularItemId]?.rarity >= 3) {
                 styledRegularName = `<span class="featuredItem-text">${nameWithLink}</span>`;
@@ -778,8 +766,7 @@
         const regularLine = styledRegularName;
 
         if (reRollItemNameForDisplay) {
-            const href = generateLink(s3); // 再抽選は s3 (S_reroll) が最後のSEED
-            const reRollItemId = Object.keys(itemMaster).find(key => itemMaster[key].name === reRollItemNameForDisplay);
+            const href = generateItemLink(s3, reRollItemId); // 再抽選は s3 (S_reroll) が最後のSEED
             let styledRerollName = `<a href="${href}">${reRollItemNameForDisplay}</a>`;
             if (reRollItemId && itemMaster[reRollItemId]?.rarity >= 3) {
                 styledRerollName = `<span class="featuredItem-text">${styledRerollName}</span>`;
@@ -806,12 +793,6 @@
         return { html, newItemId: finalItemId };
     }
     function calculateGuaranteedCell(startSeedIndex, gacha, SEED, displaySeed, params) {
-        const generateLink = (seed) => {
-            const currentParams = new URLSearchParams(window.location.search);
-            currentParams.set('seed', seed);
-            return `?${currentParams.toString()}`;
-        };
-
         if (!gacha.uberGuaranteedFlag && !gacha.legendGuaranteedFlag) {
             return (displaySeed === '1') ? '<td colspan="3"></td>' : '<td></td>';
         }
@@ -849,7 +830,7 @@
         
         let itemName = itemMaster[itemId]?.name || '---';
         if (itemId !== -1) {
-            const href = generateLink(s_slot); // 確定枠は s_slot が最後のSEED
+            const href = generateItemLink(s_slot, itemId); // 確定枠は s_slot が最後のSEED
             itemName = `<a href="${href}">${itemName}</a>`; // Always link, but no special styling
         }
 
@@ -1122,6 +1103,7 @@
         }
     }
     // --- メイン関数 ---
+    let activeGachaId;
     function runSimulationAndDisplay(options = {}) {
         const { hideSeedInput = false, uiOverrides = {} } = options;
         const params = new URLSearchParams(window.location.search);
@@ -1133,6 +1115,7 @@
         const gachaIds = Object.keys(gachaMaster);
         const latestGachaId = gachaIds.reduce((a, b) => parseInt(a) > parseInt(b) ? a : b);
         const urlGachaId = params.get('gacha') || latestGachaId;
+        activeGachaId = urlGachaId;
         const urlTx = params.get('tx');
         const urlRoll = params.get('roll');
         const urlDisplaySeed = params.get('displaySeed');
@@ -1256,6 +1239,35 @@
         if (params.displaySeed !== undefined && params.displaySeed !== '1') query += `&displaySeed=${params.displaySeed}`;
         return query;
     }
+
+    function generateItemLink(newSeed, newItemId) {
+        const currentParams = new URLSearchParams(window.location.search);
+        const paramsForQuery = {};
+        // Inherit from URL
+        for (const [key, value] of currentParams.entries()) {
+            if (key === 'gacha') {
+                paramsForQuery.gachaId = value;
+            } else {
+                paramsForQuery[key] = value;
+            }
+        }
+
+        // If gacha is not in the URL, use the active one.
+        if (!paramsForQuery.gachaId) {
+            paramsForQuery.gachaId = activeGachaId;
+        }
+
+        // Override with new values for the link
+        paramsForQuery.seed = newSeed;
+        // Only set 'lr' if we have a new item ID. Otherwise, keep the one from the URL.
+        if (newItemId !== undefined) {
+            paramsForQuery.lr = newItemId;
+        }
+
+        // Call the existing centralized query builder
+        return generateUrlQuery(paramsForQuery);
+    }
+
     function populateGuaranteedRolls(max, currentVal) {
         const input = document.getElementById('guaranteedRollsInput');
         input.innerHTML = '';
