@@ -353,7 +353,11 @@
     // --- 表示ロジック ---
     // --- 未コンプガチャの計算と表示 ---
     function calculateUncompletedCell(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params) {
-        const generateLink = (seed) => generateUrlQuery({ ...Object.fromEntries(params.entries()), seed: seed });
+        const generateLink = (seed) => {
+            const currentParams = new URLSearchParams(window.location.search);
+            currentParams.set('seed', seed);
+            return `?${currentParams.toString()}`;
+        };
         // This function calculates the result for a single cell and returns its HTML and the resulting item ID.
         // Guard against running out of seeds
         if (startSeedIndex + 4 >= SEED.length) {
@@ -546,7 +550,11 @@
                         const row_num = Math.floor(zeroBasedIndex / 3) + 1;
                         return `${col_char}${row_num}`;
                     };
-                    const generateLink = (seed) => generateUrlQuery({ ...Object.fromEntries(params.entries()), seed: seed });
+                    const generateLink = (seed) => {
+                        const currentParams = new URLSearchParams(window.location.search);
+                        currentParams.set('seed', seed);
+                        return `?${currentParams.toString()}`;
+                    };
 
                     let table = '<table style="table-layout: fixed;"><thead>';
                     let header1 = `<tr><th rowspan="${displaySeed === '1' ? 2 : 1}" id="forceRerollToggle" class="col-no" style="cursor: pointer;">${forceRerollMode ? '☑' : '□'}</th>`;
@@ -706,7 +714,11 @@
                     document.getElementById('result-table-container').innerHTML = table;
                 }    // --- コンプ済みガチャの計算と表示 ---
     function calculateCompletedCell(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params) {
-        const generateLink = (seed) => generateUrlQuery({ ...Object.fromEntries(params.entries()), seed: seed });
+        const generateLink = (seed) => {
+            const currentParams = new URLSearchParams(window.location.search);
+            currentParams.set('seed', seed);
+            return `?${currentParams.toString()}`;
+        };
 
         let finalItemId = -1;
         let html;
@@ -794,7 +806,11 @@
         return { html, newItemId: finalItemId };
     }
     function calculateGuaranteedCell(startSeedIndex, gacha, SEED, displaySeed, params) {
-        const generateLink = (seed) => generateUrlQuery({ ...Object.fromEntries(params.entries()), seed: seed });
+        const generateLink = (seed) => {
+            const currentParams = new URLSearchParams(window.location.search);
+            currentParams.set('seed', seed);
+            return `?${currentParams.toString()}`;
+        };
 
         if (!gacha.uberGuaranteedFlag && !gacha.legendGuaranteedFlag) {
             return (displaySeed === '1') ? '<td colspan="3"></td>' : '<td></td>';
@@ -1114,7 +1130,9 @@
         const urlFeaturedStock = params.get('fs');
         const urlLastRoll = params.get('lr');
         const urlComp = params.get('comp');
-        const urlGachaId = params.get('gacha') || '45';
+        const gachaIds = Object.keys(gachaMaster);
+        const latestGachaId = gachaIds.reduce((a, b) => parseInt(a) > parseInt(b) ? a : b);
+        const urlGachaId = params.get('gacha') || latestGachaId;
         const urlTx = params.get('tx');
         const urlRoll = params.get('roll');
         const urlDisplaySeed = params.get('displaySeed');
@@ -1159,7 +1177,9 @@
     function updateUIAndURL(options = {}) {
         const { hideSeedInput = false, uiOverrides = {} } = options;
         const params = new URLSearchParams(window.location.search);
-        const urlGachaId = params.get('gacha') || '45';
+        const gachaIds = Object.keys(gachaMaster);
+        const latestGachaId = gachaIds.reduce((a, b) => parseInt(a) > parseInt(b) ? a : b);
+        const urlGachaId = params.get('gacha') || latestGachaId;
         const gacha = gachaMaster[urlGachaId];
         
         // --- ▼ 修正 (6): 'ng' の値が 'none' でも URL に反映されるように uiOverrides を考慮 ▼ ---
