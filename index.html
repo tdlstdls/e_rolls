@@ -185,15 +185,14 @@
         /* --- ▲ 修正 (1) 完了 ▲ --- */
 
         /* --- ▼ 修正 (3): ハイライト用CSS (全色) ▼ --- */
-        /* 単発ルート (緑) */
-        .highlight-roll { background-color: #e0ffe0 !important; }
-        .highlight-roll-10 { background-color: #a0eda0 !important; }
-        /* 10連ルート (黄) */
-        .highlight-roll-10pull { background-color: #ffffe0 !important; }
-        .highlight-roll-10pull-10 { background-color: #f0f050 !important; }
-        /* 重複ルート (黄緑) */
-        .highlight-roll-overlap { background-color: #dfffb0 !important; }
-        .highlight-roll-overlap-10 { background-color: #90dd40 !important; }
+        /* 単発ルート (青) */
+        .highlight-roll { background-color: #e0f7ff !important; } /* 薄い青 */
+        .highlight-roll-10 { background-color: #a0eaff !important; } /* やや濃い薄い青色 */
+        /* 10連ルート (赤) */
+        .highlight-roll-10pull { background-color: #ffe0e0 !important; } /* 薄い赤 */
+        .highlight-roll-10pull-10 { background-color: #f0a0a0 !important; } /* やや濃い薄い赤色 */
+        /* 共通ルート (オレンジ) */
+        .highlight-roll-overlap { background-color: #fff7e0 !important; } /* 薄いオレンジ */
         /* --- ▲ 修正 (3) 完了 ▲ --- */
     </style>
 </head>
@@ -213,9 +212,9 @@
                         <select id="guaranteedRollsInput"></select>
                     </div>
                     <div class="input-item" id="legendDisplay" style="font-size: 0.7rem;">
-                        <span style="background-color: #e0ffe0; padding: 2px 5px; border-radius: 3px; margin-left: 10px;">単発ルート</span>
-                        <span style="background-color: #ffffe0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">10連ルート</span>
-                        <span style="background-color: #dfffb0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">共通ルート</span>
+                        <span style="background-color: #e0f7ff; padding: 2px 5px; border-radius: 3px; margin-left: 10px;">単発ルート</span>
+                        <span style="background-color: #ffe0e0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">10連ルート</span>
+                        <span style="background-color: #fff7e0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">共通ルート</span>
                     </div>
                     <div id="lastRollDisplay" class="input-item-display-only">
                         </div>
@@ -1051,9 +1050,9 @@
                 const is10th_10pull = roll_A_10pull % 10 === 0;
                 let overlap_class = 'highlight-roll-overlap'; // 通常の共通ルート色
                 if (is10th_10pull) {
-                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い黄色
+                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い赤色
                 } else if (is10th_single) {
-                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い緑色
+                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い青色
                 }
                 
                 if (isGuaranteed_A_single || isGuaranteed_A_10pull) {
@@ -1086,9 +1085,9 @@
                 const is10th_10pull = roll_B_10pull % 10 === 0;
                 let overlap_class = 'highlight-roll-overlap'; // 通常の共通ルート色
                 if (is10th_10pull) {
-                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い黄色
+                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い赤色
                 } else if (is10th_single) {
-                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い緑色
+                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い青色
                 }
 
                 if (isGuaranteed_B_single || isGuaranteed_B_10pull) {
