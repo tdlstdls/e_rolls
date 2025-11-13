@@ -1178,7 +1178,7 @@
             comp: document.getElementById('featuredCompleteCheckbox').checked,
             tx: params.get('tx') && !hideSeedInput ? '1' : undefined,
             roll: params.get('roll') || 100,
-            displaySeed: params.get('displaySeed') || '1'
+            displaySeed: params.get('displaySeed')
         });
         // --- ▲ 修正 (6) 完了 ▲ ---
         
@@ -1189,7 +1189,12 @@
         const stockControl = document.getElementById('stockControl');
         const guaranteedControl = document.getElementById('guaranteedControl');
         const legendDisplay = document.getElementById('legendDisplay'); // Get legend element
-        showSeedInputLink.href = generateUrlQuery({ ...Object.fromEntries(params.entries()), tx: '1' });
+        
+        const linkParams = Object.fromEntries(params.entries());
+        linkParams.gacha = urlGachaId;
+        linkParams.tx = '1';
+        showSeedInputLink.href = generateUrlQuery(linkParams);
+
         if (params.get('tx') && !hideSeedInput) {
             seedRow.classList.remove('hidden-control');
             seedLinkContainer.classList.add('hidden-control');
@@ -1236,7 +1241,7 @@
         if (params.comp) query += `&comp=true`;
         if (params.tx) query += `&tx=${params.tx}`;
         if (params.roll !== undefined && params.roll !== 100) query += `&roll=${params.roll}`;
-        if (params.displaySeed !== undefined && params.displaySeed !== '1') query += `&displaySeed=${params.displaySeed}`;
+        if (params.displaySeed !== undefined && params.displaySeed !== '0') query += `&displaySeed=${params.displaySeed}`;
         return query;
     }
 
