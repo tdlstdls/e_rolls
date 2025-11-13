@@ -183,6 +183,18 @@
             text-decoration: none; /* 下線を削除 */
         }
         /* --- ▲ 修正 (1) 完了 ▲ --- */
+
+        /* --- ▼ 修正 (3): ハイライト用CSS (全色) ▼ --- */
+        /* 単発ルート (緑) */
+        .highlight-roll { background-color: #e0ffe0 !important; }
+        .highlight-roll-10 { background-color: #80ff80 !important; }
+        /* 10連ルート (黄) */
+        .highlight-roll-10pull { background-color: #ffffe0 !important; }
+        .highlight-roll-10pull-10 { background-color: #ffff80 !important; }
+        /* 重複ルート (黄緑) */
+        .highlight-roll-overlap { background-color: #dfffb0 !important; }
+        .highlight-roll-overlap-10 { background-color: #bfff70 !important; }
+        /* --- ▲ 修正 (3) 完了 ▲ --- */
     </style>
 </head>
 <body>
@@ -268,6 +280,71 @@
             }
         }
     }
+    // --- ▼ 修正 (4): ハイライト計算・適用ロジック追加 ▼ ---
+    /**
+     * レンダリングされたセルのHTML文字列にクラスを追加します。
+     * @param {string} cellHtml - 1つ以上の <td>...</td> を含むHTML文字列
+     * @param {string} className - 追加するクラス名 (空の場合は何もしない)
+     * @returns {string} - クラスが追加されたHTML文字列
+     */
+    function addClassToCell(cellHtml, className) {
+        if (!className) return cellHtml;
+        // <td> で始まる最初のタグにクラスを追加します (colspan対応)
+        return cellHtml.replace(/<td/, `<td class="${className}"`);
+    }
+    /**
+     * コンプ済みガチャの1ロール分のシミュレーションを行います（ハイライトパス計算用）。
+     * @param {number} startSeedIndex - このロールの開始シードIndex (S1)
+     * @param {number} lastItemId - 直前のロールのアイテムID (レア被り判定用)
+     * @param {number[]} SEED - シード配列
+     * @param {object} gacha - ガチャのマスターデータ
+     * @param {function} getRarityFromRoll - レアリティ判定関数
+     * @returns {{nextSeedIndex: number, newItemId: number, address: number}}
+     */
+    function calculateCompletedRoll(startSeedIndex, lastItemId, SEED, gacha, getRarityFromRoll) {
+        // 少なくともS1, S2 が必要
+        if (startSeedIndex + 1 >= SEED.length) {
+            return { nextSeedIndex: startSeedIndex + 2, newItemId: -1, address: startSeedIndex, reRollFlag: false };
+        }
+        
+        const s1 = SEED[startSeedIndex];
+        const s2 = SEED[startSeedIndex + 1];
+        const rarityResult = getRarityFromRoll(s1 % 10000);
+        const rarityId = rarityResult.id;
+        const pool = gacha.rarityItems[rarityId] || [];
+        
+        let regularItemId = -1;
+        if (pool.length > 0) {
+            regularItemId = pool[s2 % pool.length];
+        }
+
+        const canReRoll = rarityId === 1 && pool.length >= 2;
+        const reRollFlag = canReRoll && regularItemId !== -1 && regularItemId === lastItemId;
+        
+        let finalItemId = regularItemId;
+        let nextSeedIndex = startSeedIndex + 2; // s1, s2 の2シード消費
+
+        if (reRollFlag) {
+            // レア被り時、S3 が必要
+            if (startSeedIndex + 2 < SEED.length) {
+                const s3 = SEED[startSeedIndex + 2];
+                const reRollPool = pool.filter(id => id !== lastItemId);
+                if (reRollPool.length > 0) {
+                    finalItemId = reRollPool[s3 % reRollPool.length];
+                }
+                nextSeedIndex = startSeedIndex + 3; // s1, s2, s3 の3シード消費
+            }
+        } else if (forceRerollMode && canReRoll) {
+             // 強制再抽選モード時も、S3 を消費する
+            if (startSeedIndex + 2 < SEED.length) {
+                nextSeedIndex = startSeedIndex + 3; // s1, s2, s3 の3シード消費
+                // finalItemId は変わらない (表示のみのため)
+            }
+        }
+
+        return { nextSeedIndex: nextSeedIndex, newItemId: finalItemId, address: startSeedIndex, reRollFlag: reRollFlag };
+    }
+    // --- ▲ 修正 (4) 完了 ▲ ---
     // --- 表示ロジック ---
     // --- 未コンプガチャの計算と表示 ---
     function calculateUncompletedCell(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params) {
@@ -381,6 +458,61 @@
             html = `<td>${sub5}</td>`;
         }
         return { html, newItemId: finalItemId };
+    }
+                function calculateUncompletedRoll(startSeedIndex, lastItemId, gacha, SEED, getRarityFromRoll) {
+        // Guard against running out of seeds
+        if (startSeedIndex + 4 >= SEED.length) {
+            return { nextSeedIndex: startSeedIndex + 1, newItemId: -1, reRollFlag: false, address: startSeedIndex };
+        }
+
+        const s1 = SEED[startSeedIndex];
+        const featuredFlag = (s1 % 10000) < gacha.featuredItemRate;
+
+        if (featuredFlag) {
+            // 目玉の場合
+            return {
+                nextSeedIndex: startSeedIndex + 1,
+                newItemId: -2, // 目玉
+                reRollFlag: false,
+                address: startSeedIndex
+            };
+        } else {
+            // 通常抽選
+            const s2 = SEED[startSeedIndex + 1];
+            const s3 = SEED[startSeedIndex + 2];
+            const rarityResult = getRarityFromRoll(s2 % 10000);
+            const rarityId = rarityResult.id;
+            const pool = gacha.rarityItems[rarityId] || [];
+            
+            let regularItemId = -1;
+            if (pool.length > 0) {
+                regularItemId = pool[s3 % pool.length];
+            }
+
+            const canReRoll = rarityId === 1 && pool.length >= 2;
+            const reRollFlag = canReRoll && regularItemId !== -1 && regularItemId === lastItemId;
+
+            let finalItemId = regularItemId;
+            let nextSeedIndex = startSeedIndex + 3; // s1, s2, s3
+
+            if (reRollFlag) {
+                if (startSeedIndex + 3 < SEED.length) {
+                    const s4 = SEED[startSeedIndex + 3];
+                    const reRollPool = pool.filter(id => id !== lastItemId);
+                    if (reRollPool.length > 0) {
+                        finalItemId = reRollPool[s4 % reRollPool.length];
+                    }
+                    nextSeedIndex = startSeedIndex + 4; // s1, s2, s3, s4
+                }
+            }
+            
+            return {
+                nextSeedIndex: nextSeedIndex,
+                newItemId: finalItemId,
+                reRollFlag: reRollFlag,
+                address: startSeedIndex
+            };
+        }
     }
                 function createAndDisplayUncompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params) {
                     const SEED = [initialSeed];
@@ -709,6 +841,7 @@
         const col3 = itemName;
         return `<td>${col1}</td><td>${col2}</td><td>${col3}</td>`;
     }
+    // --- ▼ 修正 (5): ハイライトロジックの組み込み (デュアルハイライト対応) ▼ ---
     function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params) {
         const SEED = [initialSeed];
         for (let i = 1; i < tableRows * 2 * 3 + 20; i++) {
@@ -728,6 +861,109 @@
             const row_num = Math.floor(zeroBasedIndex / 2) + 1;
             return `${row_num}${col_char}`;
         };
+
+        // --- ▼ 新しいハイライトパス計算ロジック ▼ ---
+
+        function calculateGuaranteedRoll(startSeedIndex, gacha, SEED) {
+            if (!gacha.uberGuaranteedFlag && !gacha.legendGuaranteedFlag) {
+                return { newItemId: -1, nextSeedIndex: startSeedIndex + 2 };
+            }
+            const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
+            const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
+            const rarityDivisor = uberRate + legendRate;
+            if (rarityDivisor === 0 || startSeedIndex + 1 >= SEED.length) {
+                return { newItemId: -1, nextSeedIndex: startSeedIndex + 2 };
+            }
+            const s_rarity = SEED[startSeedIndex];
+            const s_slot = SEED[startSeedIndex + 1];
+            const rarityRoll = s_rarity % rarityDivisor;
+            const rarityId = (rarityRoll < uberRate) ? '3' : '4';
+            const pool = gacha.rarityItems[rarityId];
+            if (!pool || pool.length === 0) {
+                return { newItemId: -1, nextSeedIndex: startSeedIndex + 2 };
+            }
+            const slot = s_slot % pool.length;
+            const itemId = pool[slot];
+            return { newItemId: itemId, nextSeedIndex: startSeedIndex + 2 };
+        }
+
+        const nextGuaranteed = parseInt(document.getElementById('guaranteedRollsInput').value, 10);
+        const hasGuaranteed = !isNaN(nextGuaranteed);
+        
+        const singleRollMap = new Map();
+        const tenPullRollMap = new Map();
+        const MAX_ROLLS = tableRows * 2;
+
+        // 1. 単発ロールパス
+        let currentSeedIndexSingle = 1;
+        let currentLastItemIdSingle = initialLastRollId;
+        for (let i = 1; i <= MAX_ROLLS; i++) {
+            if (currentSeedIndexSingle >= SEED.length) break;
+            const isGuaranteedRoll = hasGuaranteed && i >= nextGuaranteed && (i - nextGuaranteed) % 10 === 0;
+            if (isGuaranteedRoll) {
+                singleRollMap.set(currentSeedIndexSingle, i);
+                const rollData = calculateGuaranteedRoll(currentSeedIndexSingle, gacha, SEED);
+                currentSeedIndexSingle = rollData.nextSeedIndex;
+                currentLastItemIdSingle = rollData.newItemId;
+            } else {
+                const rollData = calculateCompletedRoll(currentSeedIndexSingle, currentLastItemIdSingle, SEED, gacha, getRarityFromRoll);
+                singleRollMap.set(rollData.address, i);
+                currentSeedIndexSingle = rollData.nextSeedIndex;
+                currentLastItemIdSingle = rollData.newItemId;
+            }
+        }
+
+        // 2. 10連ロールパス (シーケンシャルモデル + 周期判定)
+        if (hasGuaranteed) {
+            function calculateGuaranteedRollFor10Pull(slotSeedIndex, guaranteedRarityId, SEED, gacha) {
+                const pool = gacha.rarityItems[guaranteedRarityId] || [];
+                if (!pool || pool.length === 0 || slotSeedIndex >= SEED.length) {
+                    return { newItemId: -1, nextSeedIndex: slotSeedIndex + 1 };
+                }
+                const s_slot = SEED[slotSeedIndex];
+                const slot = s_slot % pool.length;
+                const itemId = pool[slot];
+                return { newItemId: itemId, nextSeedIndex: slotSeedIndex + 1 };
+            }
+
+            let seed_counter = 1; // S1から開始
+            let currentLastItemId10 = initialLastRollId;
+            let guaranteedRarityId = '3'; // 周期ごとに更新される
+
+            for (let i = 1; i <= MAX_ROLLS; i++) {
+                if (seed_counter >= SEED.length) break;
+
+                // 周期の開始か判定 (1, 11, 21, ...)
+                if ((i - 1) % 10 === 0) {
+                    const raritySeedIndex = seed_counter;
+                    const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
+                    const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
+                    const rarityDivisor = uberRate + legendRate;
+                    if (rarityDivisor > 0 && raritySeedIndex < SEED.length) {
+                        const rarityRoll_g = SEED[raritySeedIndex] % rarityDivisor;
+                        if (rarityRoll_g >= uberRate) guaranteedRarityId = '4';
+                    }
+                    seed_counter++;
+                }
+
+                const isGuaranteedRoll = (i >= nextGuaranteed) && ((i - nextGuaranteed) % 10 === 0);
+
+                if (isGuaranteedRoll) {
+                    const mapIndex = seed_counter - 1;
+                    const rollData = calculateGuaranteedRollFor10Pull(seed_counter, guaranteedRarityId, SEED, gacha);
+                    tenPullRollMap.set(mapIndex, i);
+                    seed_counter = rollData.nextSeedIndex;
+                    currentLastItemId10 = rollData.newItemId;
+                } else {
+                    const rollData = calculateCompletedRoll(seed_counter, currentLastItemId10, SEED, gacha, getRarityFromRoll);
+                    tenPullRollMap.set(rollData.address, i);
+                    seed_counter = rollData.nextSeedIndex;
+                    currentLastItemId10 = rollData.newItemId;
+                }
+            }
+        }
+        // --- ▲ 新しいハイライトパス計算ロジック 完了 ▲ ---
+
         let table = '<table style="table-layout: fixed;"><thead>';
         let header1 = `<tr><th rowspan="${displaySeed === '1' ? 2 : 1}" id="forceRerollToggle" class="col-no" style="cursor: pointer;">${forceRerollMode ? '☑' : '□'}</th>`;
         let header2 = '<tr>';
@@ -756,30 +992,65 @@
         let lastItemB = initialLastRollId;
 
         for (let r = 0; r < tableRows; r++) {
+            const seedIndexA = r * 2 + 1;
+            const seedIndexB = r * 2 + 2;
+            
+            let classA = '', classAG = '', classB = '', classBG = '';
+
+            const roll_A_single = singleRollMap.get(seedIndexA);
+            const roll_A_10pull = tenPullRollMap.get(seedIndexA);
+            const isGuaranteed_A_single = hasGuaranteed && roll_A_single >= nextGuaranteed && (roll_A_single - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_A_10pull = hasGuaranteed && roll_A_10pull >= nextGuaranteed && (roll_A_10pull - nextGuaranteed) % 10 === 0;
+
+            if (roll_A_single && !isGuaranteed_A_single) {
+                classA = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+            }
+            if (roll_A_10pull && !isGuaranteed_A_10pull) {
+                classA = classA ? 'highlight-roll-overlap' : ((roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            }
+            if (isGuaranteed_A_single) {
+                classAG = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+            }
+            if (isGuaranteed_A_10pull) {
+                classAG = classAG ? 'highlight-roll-overlap' : ((roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            }
+
+            const roll_B_single = singleRollMap.get(seedIndexB);
+            const roll_B_10pull = tenPullRollMap.get(seedIndexB);
+            const isGuaranteed_B_single = hasGuaranteed && roll_B_single >= nextGuaranteed && (roll_B_single - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_B_10pull = hasGuaranteed && roll_B_10pull >= nextGuaranteed && (roll_B_10pull - nextGuaranteed) % 10 === 0;
+
+            if (roll_B_single && !isGuaranteed_B_single) {
+                classB = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+            }
+            if (roll_B_10pull && !isGuaranteed_B_10pull) {
+                classB = classB ? 'highlight-roll-overlap' : ((roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            }
+            if (isGuaranteed_B_single) {
+                classBG = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+            }
+            if (isGuaranteed_B_10pull) {
+                classBG = classBG ? 'highlight-roll-overlap' : ((roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            }
+
             table += `<tr><td class="col-no">${r + 1}</td>`;
             
-            // Cell A
-            const seedIndexA = r * 2 + 1;
             const cellA = calculateCompletedCell(seedIndexA, lastItemA, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params);
             lastItemA = cellA.newItemId;
-            table += cellA.html;
-            // Cell AG
-            const seedIndexAG = r * 2 + 1;
-            table += calculateGuaranteedCell(seedIndexAG, gacha, SEED, displaySeed, params);
-            // Cell B
-            const seedIndexB = r * 2 + 2;
+            table += addClassToCell(cellA.html, classA);
+            table += addClassToCell(calculateGuaranteedCell(seedIndexA, gacha, SEED, displaySeed, params), classAG);
+            
             const cellB = calculateCompletedCell(seedIndexB, lastItemB, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params);
             lastItemB = cellB.newItemId;
-            table += cellB.html;
-            // Cell BG
-            const seedIndexBG = r * 2 + 2;
-            table += calculateGuaranteedCell(seedIndexBG, gacha, SEED, displaySeed, params);
+            table += addClassToCell(cellB.html, classB);
+            table += addClassToCell(calculateGuaranteedCell(seedIndexB, gacha, SEED, displaySeed, params), classBG);
             
             table += '</tr>';
         }
         table += '</tbody></table>';
         document.getElementById('result-table-container').innerHTML = table;
     }
+    // --- ▲ 修正 (5) 完了 ▲ ---
     // --- ディスパッチャー ---
     function createAndDisplaySeedViewNew(initialSeed, gacha, tableRows, isFeaturedComplete, thresholds, initialLastRollId, displaySeed, params) {
         if (isFeaturedComplete) {
@@ -844,17 +1115,24 @@
         const params = new URLSearchParams(window.location.search);
         const urlGachaId = params.get('gacha') || '45';
         const gacha = gachaMaster[urlGachaId];
+        
+        // --- ▼ 修正 (6): 'ng' の値が 'none' でも URL に反映されるように uiOverrides を考慮 ▼ ---
+        const currentNG = document.getElementById('guaranteedRollsInput').value;
+        const newNG = uiOverrides.guaranteedRolls !== undefined ? uiOverrides.guaranteedRolls : currentNG;
+        
         const newUrlQuery = generateUrlQuery({
             gachaId: urlGachaId,
             seed: document.getElementById('seedInput').value,
-            ng: document.getElementById('guaranteedRollsInput').value,
-            fs: document.getElementById('featuredStockInput').value,
+            ng: newNG, // 修正
+            fs: uiOverrides.featuredStock !== undefined ? uiOverrides.featuredStock : document.getElementById('featuredStockInput').value, // 修正
             lr: params.get('lr'),
             comp: document.getElementById('featuredCompleteCheckbox').checked,
             tx: params.get('tx') && !hideSeedInput ? '1' : undefined,
             roll: params.get('roll') || 100,
             displaySeed: params.get('displaySeed') || '1'
         });
+        // --- ▲ 修正 (6) 完了 ▲ ---
+        
         window.history.replaceState({ path: newUrlQuery }, '', `${window.location.pathname}${newUrlQuery}`);
         const seedRow = document.getElementById('seedRow');
         const seedLinkContainer = document.getElementById('seedLinkContainer');
@@ -870,19 +1148,21 @@
             seedLinkContainer.classList.remove('hidden-control');
         }
         const isFeaturedComplete = document.getElementById('featuredCompleteCheckbox').checked;
-        populateFeaturedStockInput(urlGachaId, params.get('fs'));
+        
+        populateFeaturedStockInput(urlGachaId, params.get('fs') || 'none'); // 'none' を明示
+
         if (isFeaturedComplete) {
             stockControl.classList.add('hidden-control');
             if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                 guaranteedControl.classList.remove('hidden-control');
-                populateGuaranteedRolls(10, document.getElementById('guaranteedRollsInput').value);
+                populateGuaranteedRolls(10, newNG); // 修正
             } else {
                 guaranteedControl.classList.add('hidden-control');
             }
         } else {
             stockControl.classList.remove('hidden-control');
             guaranteedControl.classList.remove('hidden-control');
-            populateGuaranteedRolls(gacha.guaranteedCycle || 30, document.getElementById('guaranteedRollsInput').value);
+            populateGuaranteedRolls(gacha.guaranteedCycle || 30, newNG); // 修正
         }
         const lastRollDisplay = document.getElementById('lastRollDisplay');
         const lr = params.get('lr');
@@ -941,8 +1221,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         setupGachaRarityItems();
         document.getElementById('executeButton').addEventListener('click', () => runSimulationAndDisplay({ hideSeedInput: true, uiOverrides: { seed: document.getElementById('seedInput').value } }));
-        document.getElementById('guaranteedRollsInput').addEventListener('change', () => runSimulationAndDisplay({ uiOverrides: { guaranteedRolls: document.getElementById('guaranteedRollsInput').value } }));
-        document.getElementById('featuredStockInput').addEventListener('change', () => runSimulationAndDisplay({ uiOverrides: { featuredStock: document.getElementById('featuredStockInput').value } }));
+        // --- ▼ 修正 (7): 'ng' の値が 'none' でも runSimulationAndDisplay が呼ばれるように修正 ▼ ---
+        document.getElementById('guaranteedRollsInput').addEventListener('change', (e) => runSimulationAndDisplay({ uiOverrides: { guaranteedRolls: e.target.value } }));
+        document.getElementById('featuredStockInput').addEventListener('change', (e) => runSimulationAndDisplay({ uiOverrides: { featuredStock: e.target.value } }));
+        // --- ▲ 修正 (7) 完了 ▲ ---
         document.getElementById('featuredCompleteCheckbox').addEventListener('change', () => runSimulationAndDisplay({ uiOverrides: { isComplete: document.getElementById('featuredCompleteCheckbox').checked } }));
         document.getElementById('copySeedLink').addEventListener('click', (event) => {
             event.preventDefault();
