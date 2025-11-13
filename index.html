@@ -187,13 +187,13 @@
         /* --- ▼ 修正 (3): ハイライト用CSS (全色) ▼ --- */
         /* 単発ルート (緑) */
         .highlight-roll { background-color: #e0ffe0 !important; }
-        .highlight-roll-10 { background-color: #80ff80 !important; }
+        .highlight-roll-10 { background-color: #a0eda0 !important; }
         /* 10連ルート (黄) */
         .highlight-roll-10pull { background-color: #ffffe0 !important; }
-        .highlight-roll-10pull-10 { background-color: #ffff80 !important; }
+        .highlight-roll-10pull-10 { background-color: #f0f050 !important; }
         /* 重複ルート (黄緑) */
         .highlight-roll-overlap { background-color: #dfffb0 !important; }
-        .highlight-roll-overlap-10 { background-color: #bfff70 !important; }
+        .highlight-roll-overlap-10 { background-color: #90dd40 !important; }
         /* --- ▲ 修正 (3) 完了 ▲ --- */
     </style>
 </head>
@@ -211,6 +211,11 @@
                     <div class="input-item" id="guaranteedControl">
                         <label for="guaranteedRollsInput">next guaranteed</label>
                         <select id="guaranteedRollsInput"></select>
+                    </div>
+                    <div class="input-item" id="legendDisplay" style="font-size: 0.7rem;">
+                        <span style="background-color: #e0ffe0; padding: 2px 5px; border-radius: 3px; margin-left: 10px;">単発ルート</span>
+                        <span style="background-color: #ffffe0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">10連ルート</span>
+                        <span style="background-color: #dfffb0; padding: 2px 5px; border-radius: 3px; margin-left: 5px;">共通ルート</span>
                     </div>
                     <div id="lastRollDisplay" class="input-item-display-only">
                         </div>
@@ -897,6 +902,7 @@
         // 1. 単発ロールパス
         let currentSeedIndexSingle = 1;
         let currentLastItemIdSingle = initialLastRollId;
+        let previousRollWasGuaranteedSingle = false;
         for (let i = 1; i <= MAX_ROLLS; i++) {
             if (currentSeedIndexSingle >= SEED.length) break;
             const isGuaranteedRoll = hasGuaranteed && i >= nextGuaranteed && (i - nextGuaranteed) % 10 === 0;
@@ -905,11 +911,14 @@
                 const rollData = calculateGuaranteedRoll(currentSeedIndexSingle, gacha, SEED);
                 currentSeedIndexSingle = rollData.nextSeedIndex;
                 currentLastItemIdSingle = rollData.newItemId;
+                previousRollWasGuaranteedSingle = true;
             } else {
-                const rollData = calculateCompletedRoll(currentSeedIndexSingle, currentLastItemIdSingle, SEED, gacha, getRarityFromRoll);
+                const lastItemIdForCheck = previousRollWasGuaranteedSingle ? null : currentLastItemIdSingle;
+                const rollData = calculateCompletedRoll(currentSeedIndexSingle, lastItemIdForCheck, SEED, gacha, getRarityFromRoll);
                 singleRollMap.set(rollData.address, i);
                 currentSeedIndexSingle = rollData.nextSeedIndex;
                 currentLastItemIdSingle = rollData.newItemId;
+                previousRollWasGuaranteedSingle = false;
             }
         }
 
@@ -929,11 +938,11 @@
             let seed_counter = 1; // S1から開始
             let currentLastItemId10 = initialLastRollId;
             let guaranteedRarityId = '3'; // 周期ごとに更新される
+            let previousRollWasGuaranteed10 = false;
 
             for (let i = 1; i <= MAX_ROLLS; i++) {
                 if (seed_counter >= SEED.length) break;
 
-                // 周期の開始か判定 (1, 11, 21, ...)
                 if ((i - 1) % 10 === 0) {
                     const raritySeedIndex = seed_counter;
                     const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
@@ -954,11 +963,14 @@
                     tenPullRollMap.set(mapIndex, i);
                     seed_counter = rollData.nextSeedIndex;
                     currentLastItemId10 = rollData.newItemId;
+                    previousRollWasGuaranteed10 = true;
                 } else {
-                    const rollData = calculateCompletedRoll(seed_counter, currentLastItemId10, SEED, gacha, getRarityFromRoll);
+                    const lastItemIdForCheck = previousRollWasGuaranteed10 ? null : currentLastItemId10;
+                    const rollData = calculateCompletedRoll(seed_counter, lastItemIdForCheck, SEED, gacha, getRarityFromRoll);
                     tenPullRollMap.set(rollData.address, i);
                     seed_counter = rollData.nextSeedIndex;
                     currentLastItemId10 = rollData.newItemId;
+                    previousRollWasGuaranteed10 = false;
                 }
             }
         }
@@ -997,40 +1009,74 @@
             
             let classA = '', classAG = '', classB = '', classBG = '';
 
+            // A列のハイライトクラス決定
             const roll_A_single = singleRollMap.get(seedIndexA);
             const roll_A_10pull = tenPullRollMap.get(seedIndexA);
             const isGuaranteed_A_single = hasGuaranteed && roll_A_single >= nextGuaranteed && (roll_A_single - nextGuaranteed) % 10 === 0;
             const isGuaranteed_A_10pull = hasGuaranteed && roll_A_10pull >= nextGuaranteed && (roll_A_10pull - nextGuaranteed) % 10 === 0;
 
-            if (roll_A_single && !isGuaranteed_A_single) {
-                classA = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
-            }
-            if (roll_A_10pull && !isGuaranteed_A_10pull) {
-                classA = classA ? 'highlight-roll-overlap' : ((roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
-            }
-            if (isGuaranteed_A_single) {
-                classAG = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
-            }
-            if (isGuaranteed_A_10pull) {
-                classAG = classAG ? 'highlight-roll-overlap' : ((roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            if (roll_A_single && roll_A_10pull) { // 共通ルート
+                const is10th_single = roll_A_single % 10 === 0;
+                const is10th_10pull = roll_A_10pull % 10 === 0;
+                let overlap_class = 'highlight-roll-overlap'; // 通常の共通ルート色
+                if (is10th_10pull) {
+                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い黄色
+                } else if (is10th_single) {
+                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い緑色
+                }
+                
+                if (isGuaranteed_A_single || isGuaranteed_A_10pull) {
+                    classAG = overlap_class;
+                } else {
+                    classA = overlap_class;
+                }
+            } else if (roll_A_single) { // 単発ルートのみ
+                if (isGuaranteed_A_single) {
+                    classAG = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+                } else {
+                    classA = (roll_A_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+                }
+            } else if (roll_A_10pull) { // 10連ルートのみ
+                if (isGuaranteed_A_10pull) {
+                    classAG = (roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull';
+                } else {
+                    classA = (roll_A_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull';
+                }
             }
 
+            // B列のハイライトクラス決定
             const roll_B_single = singleRollMap.get(seedIndexB);
             const roll_B_10pull = tenPullRollMap.get(seedIndexB);
             const isGuaranteed_B_single = hasGuaranteed && roll_B_single >= nextGuaranteed && (roll_B_single - nextGuaranteed) % 10 === 0;
             const isGuaranteed_B_10pull = hasGuaranteed && roll_B_10pull >= nextGuaranteed && (roll_B_10pull - nextGuaranteed) % 10 === 0;
 
-            if (roll_B_single && !isGuaranteed_B_single) {
-                classB = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
-            }
-            if (roll_B_10pull && !isGuaranteed_B_10pull) {
-                classB = classB ? 'highlight-roll-overlap' : ((roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
-            }
-            if (isGuaranteed_B_single) {
-                classBG = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
-            }
-            if (isGuaranteed_B_10pull) {
-                classBG = classBG ? 'highlight-roll-overlap' : ((roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull');
+            if (roll_B_single && roll_B_10pull) { // 共通ルート
+                const is10th_single = roll_B_single % 10 === 0;
+                const is10th_10pull = roll_B_10pull % 10 === 0;
+                let overlap_class = 'highlight-roll-overlap'; // 通常の共通ルート色
+                if (is10th_10pull) {
+                    overlap_class = 'highlight-roll-10pull-10'; // 10連ルートの10n回目なら濃い黄色
+                } else if (is10th_single) {
+                    overlap_class = 'highlight-roll-10'; // 単発ルートの10n回目なら濃い緑色
+                }
+
+                if (isGuaranteed_B_single || isGuaranteed_B_10pull) {
+                    classBG = overlap_class;
+                } else {
+                    classB = overlap_class;
+                }
+            } else if (roll_B_single) { // 単発ルートのみ
+                if (isGuaranteed_B_single) {
+                    classBG = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+                } else {
+                    classB = (roll_B_single % 10 === 0) ? 'highlight-roll-10' : 'highlight-roll';
+                }
+            } else if (roll_B_10pull) { // 10連ルートのみ
+                if (isGuaranteed_B_10pull) {
+                    classBG = (roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull';
+                } else {
+                    classB = (roll_B_10pull % 10 === 0) ? 'highlight-roll-10pull-10' : 'highlight-roll-10pull';
+                }
             }
 
             table += `<tr><td class="col-no">${r + 1}</td>`;
@@ -1139,6 +1185,7 @@
         const showSeedInputLink = document.getElementById('showSeedInputLink');
         const stockControl = document.getElementById('stockControl');
         const guaranteedControl = document.getElementById('guaranteedControl');
+        const legendDisplay = document.getElementById('legendDisplay'); // Get legend element
         showSeedInputLink.href = generateUrlQuery({ ...Object.fromEntries(params.entries()), tx: '1' });
         if (params.get('tx') && !hideSeedInput) {
             seedRow.classList.remove('hidden-control');
@@ -1155,13 +1202,16 @@
             stockControl.classList.add('hidden-control');
             if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
                 guaranteedControl.classList.remove('hidden-control');
+                legendDisplay.classList.remove('hidden-control'); // Show legend
                 populateGuaranteedRolls(10, newNG); // 修正
             } else {
                 guaranteedControl.classList.add('hidden-control');
+                legendDisplay.classList.add('hidden-control'); // Hide legend
             }
         } else {
             stockControl.classList.remove('hidden-control');
             guaranteedControl.classList.remove('hidden-control');
+            legendDisplay.classList.remove('hidden-control'); // Show legend
             populateGuaranteedRolls(gacha.guaranteedCycle || 30, newNG); // 修正
         }
         const lastRollDisplay = document.getElementById('lastRollDisplay');
