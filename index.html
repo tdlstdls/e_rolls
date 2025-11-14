@@ -828,18 +828,22 @@
     }
     function calculateGuaranteedCell(startSeedIndex, gacha, SEED, displaySeed, params, ngForDisplay, initialInputNg, rollNumber) {
         if (!gacha.uberGuaranteedFlag && !gacha.legendGuaranteedFlag) {
-            return (displaySeed === '1') ? '<td colspan="3"></td>' : '<td></td>';
+            const emptyHtml = (displaySeed === '1') ? '<td colspan="3"></td>' : '<td></td>';
+            return { html: emptyHtml, simpleHtml: emptyHtml, itemId: -1, itemName: '', seedForLink: 0 };
         }
         const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
         const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
         const rarityDivisor = uberRate + legendRate;
         if (rarityDivisor === 0) {
-            return (displaySeed === '1') ? `<td colspan="${displaySeed === '1' ? 3 : 1}">レート設定なし</td>` : `<td>レート設定なし</td>`;
+            const msg = 'レート設定なし';
+            const errorHtml = (displaySeed === '1') ? `<td colspan="3">${msg}</td>` : `<td>${msg}</td>`;
+            return { html: errorHtml, simpleHtml: errorHtml, itemId: -1, itemName: msg, seedForLink: 0 };
         }
         const s_rarity_idx = startSeedIndex;
         const s_slot_idx = startSeedIndex + 1;
         if (s_slot_idx >= SEED.length) {
-            return (displaySeed === '1') ? '<td colspan="3">---</td>' : '<td>---</td>';
+            const emptyHtml = (displaySeed === '1') ? '<td colspan="3">---</td>' : '<td>---</td>';
+            return { html: emptyHtml, simpleHtml: emptyHtml, itemId: -1, itemName: '---', seedForLink: 0 };
         }
         const s_rarity = SEED[s_rarity_idx];
         const s_slot = SEED[s_slot_idx];
@@ -856,27 +860,35 @@
         const pool = gacha.rarityItems[rarityId];
         if (!pool || pool.length === 0) {
             const msg = `${rarityName}プールなし`;
-            return (displaySeed === '1') ? `<td colspan="3">${msg}</td>` : `<td>${msg}</td>`;
+            const errorHtml = (displaySeed === '1') ? `<td colspan="3">${msg}</td>` : `<td>${msg}</td>`;
+            return { html: errorHtml, simpleHtml: errorHtml, itemId: -1, itemName: msg, seedForLink: 0 };
         }
         const poolSize = pool.length;
         const slot = s_slot % poolSize;
         const itemId = pool[slot];
         
-        let itemName = itemMaster[itemId]?.name || '---';
-        if (itemId !== -1) {
-            const href = generateItemLink(s_slot, itemId, initialInputNg, rollNumber, true); // Added initialInputNg, rollNumber
-            itemName = `<a href="${href}">${itemName}</a>`; // Always link, but no special styling
-        }
+        const itemName = itemMaster[itemId]?.name || '---';
 
-        let col3 = itemName;
+        const col3Text = itemName;
 
+        let fullHtml, simpleHtml;
         if (displaySeed === '0') {
-            return `<td>${col3}</td>`;
+            simpleHtml = `<td>${col3Text}</td>`;
+            fullHtml = ''; // Not needed but to be consistent
+        } else {
+            const col1 = `(S${s_rarity_idx})${s_rarity}<br>${rarityRoll}<br>${rarityName}`;
+            const col2 = `(S${s_slot_idx})${s_slot}<br>${poolSize}<br>${slot}`;
+            fullHtml = `<td>${col1}</td><td>${col2}</td><td>${col3Text}</td>`;
+            simpleHtml = `<td>${col3Text}</td>`;
         }
 
-        const col1 = `(S${s_rarity_idx})${s_rarity}<br>${rarityRoll}<br>${rarityName}`;
-        const col2 = `(S${s_slot_idx})${s_slot}<br>${poolSize}<br>${slot}`;
-        return `<td>${col1}</td><td>${col2}</td><td>${col3}</td>`;
+        return {
+            html: fullHtml,
+            simpleHtml: simpleHtml,
+            itemId: itemId,
+            itemName: itemName,
+            seedForLink: s_slot
+        };
     }
     // --- ▼ 修正 (5): ハイライトロジックの組み込み (デュアルハイライト対応) ▼ ---
     function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params) {
@@ -1165,12 +1177,38 @@
             const cellA = calculateCompletedCell(seedIndexA, lastItemA, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params, ngForCellA, nextGuaranteed, rollForA);
             lastItemA = cellA.newItemId;
             table += addClassToCell(cellA.html, classA);
-            table += addClassToCell(calculateGuaranteedCell(seedIndexA, gacha, SEED, displaySeed, params, ngForCellAG, nextGuaranteed, rollForA), classAG);
             
+            // AG Cell
+            const agData = calculateGuaranteedCell(seedIndexA, gacha, SEED, displaySeed, params, ngForCellAG, nextGuaranteed, rollForA);
+            if (agData.itemId !== -1) {
+                let agSeed = agData.seedForLink;
+                if (classAG === 'highlight-roll-10pull-10') {
+                    agSeed = SEED[seedIndexA];
+                }
+                const agHref = generateItemLink(agSeed, agData.itemId, nextGuaranteed, rollForA, true);
+                const agHtml = (displaySeed === '1' ? agData.html : agData.simpleHtml).replace(agData.itemName, `<a href="${agHref}">${agData.itemName}</a>`);
+                table += addClassToCell(agHtml, classAG);
+            } else {
+                table += addClassToCell(displaySeed === '1' ? agData.html : agData.simpleHtml, classAG);
+            }
+
             const cellB = calculateCompletedCell(seedIndexB, lastItemB, gacha, SEED, getRarityFromRoll, getAddressString, forceRerollMode, displaySeed, params, ngForCellB, nextGuaranteed, rollForB);
             lastItemB = cellB.newItemId;
             table += addClassToCell(cellB.html, classB);
-            table += addClassToCell(calculateGuaranteedCell(seedIndexB, gacha, SEED, displaySeed, params, ngForCellBG, nextGuaranteed, rollForB), classBG);
+
+            // BG Cell
+            const bgData = calculateGuaranteedCell(seedIndexB, gacha, SEED, displaySeed, params, ngForCellBG, nextGuaranteed, rollForB);
+            if (bgData.itemId !== -1) {
+                let bgSeed = bgData.seedForLink;
+                if (classBG === 'highlight-roll-10pull-10') {
+                    bgSeed = SEED[seedIndexB];
+                }
+                const bgHref = generateItemLink(bgSeed, bgData.itemId, nextGuaranteed, rollForB, true);
+                const bgHtml = (displaySeed === '1' ? bgData.html : bgData.simpleHtml).replace(bgData.itemName, `<a href="${bgHref}">${bgData.itemName}</a>`);
+                table += addClassToCell(bgHtml, classBG);
+            } else {
+                table += addClassToCell(displaySeed === '1' ? bgData.html : bgData.simpleHtml, classBG);
+            }
             
             table += '</tr>';
         }
