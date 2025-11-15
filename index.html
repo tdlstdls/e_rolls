@@ -1347,8 +1347,11 @@
         }
         const rates = gacha.rarityRates;
         const thresholds = {
-            '0': rates['0'], '1': rates['0'] + rates['1'], '2': rates['0'] + rates['1'] + rates['2'],
-            '3': rates['0'] + rates['1'] + rates['1'] + rates['2'] + rates['3'], '4': 10000
+            '0': rates['0'],
+            '1': rates['0'] + rates['1'], 
+            '2': rates['0'] + rates['1'] + rates['2'],
+            '3': rates['0'] + rates['1'] + rates['2'] + rates['3'], 
+            '4': 10000
         };
         const tableRows = parseInt(urlRoll, 10) || DEFAULT_PARAMS.roll;
         
