@@ -1084,7 +1084,7 @@
                 processInfo.isGuaranteed = isGuaranteedRoll;
 
                 if (isGuaranteedRoll) {
-                    const mapIndex = seed_counter; // 確定枠のアドレスは次のSEEDインデックス
+                    const mapIndex = seed_counter - 1; // スロット判定SEEDの1つ前のSEEDをアドレスとする
                     processInfo.startSeedIndex = mapIndex;
                     processInfo.address = getAddressString(mapIndex) + 'G';
 
@@ -1151,11 +1151,11 @@
             let classA = '', classAG = '', classB = '', classBG = '';
 
             // A列のハイライトクラス決定
-            const roll_A_single = singleRollMap.get(seedIndexA);
-            const roll_A_10pull = tenPullRollMap.get(seedIndexA);
+            const roll_A_single = singleRollMap.has(seedIndexA) ? singleRollMap.get(seedIndexA) : undefined;
+            const roll_A_10pull = tenPullRollMap.has(seedIndexA) ? tenPullRollMap.get(seedIndexA) : undefined;
             const rollForA = roll_A_single !== undefined ? roll_A_single : roll_A_10pull;
-            const isGuaranteed_A_single = hasGuaranteed && roll_A_single >= nextGuaranteed && (roll_A_single - nextGuaranteed) % 10 === 0;
-            const isGuaranteed_A_10pull = hasGuaranteed && roll_A_10pull >= nextGuaranteed && (roll_A_10pull - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_A_single = roll_A_single !== undefined && hasGuaranteed && roll_A_single >= nextGuaranteed && (roll_A_single - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_A_10pull = roll_A_10pull !== undefined && hasGuaranteed && roll_A_10pull >= nextGuaranteed && (roll_A_10pull - nextGuaranteed) % 10 === 0;
 
             if (roll_A_single && roll_A_10pull) { // 共通ルート
                 const is10th_single = roll_A_single % 10 === 0;
@@ -1190,11 +1190,11 @@
             }
 
             // B列のハイライトクラス決定
-            const roll_B_single = singleRollMap.get(seedIndexB);
-            const roll_B_10pull = tenPullRollMap.get(seedIndexB);
+            const roll_B_single = singleRollMap.has(seedIndexB) ? singleRollMap.get(seedIndexB) : undefined;
+            const roll_B_10pull = tenPullRollMap.has(seedIndexB) ? tenPullRollMap.get(seedIndexB) : undefined;
             const rollForB = roll_B_single !== undefined ? roll_B_single : roll_B_10pull;
-            const isGuaranteed_B_single = hasGuaranteed && roll_B_single >= nextGuaranteed && (roll_B_single - nextGuaranteed) % 10 === 0;
-            const isGuaranteed_B_10pull = hasGuaranteed && roll_B_10pull >= nextGuaranteed && (roll_B_10pull - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_B_single = roll_B_single !== undefined && hasGuaranteed && roll_B_single >= nextGuaranteed && (roll_B_single - nextGuaranteed) % 10 === 0;
+            const isGuaranteed_B_10pull = roll_B_10pull !== undefined && hasGuaranteed && roll_B_10pull >= nextGuaranteed && (roll_B_10pull - nextGuaranteed) % 10 === 0;
 
             if (roll_B_single && roll_B_10pull) { // 共通ルート
                 const is10th_single = roll_B_single % 10 === 0;
