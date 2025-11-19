@@ -445,14 +445,15 @@
             }
 
             // (静的ReRollFlag計算 - A/B列の整合性を保つため2つ前と比較)
-            const prevNode = (i > 2) ? Nodes[i - 3] : null; // Nodes配列は0-indexedなので index(i)-1 が自身。比較対象は i-2 なので配列indexは i-3
+            const prevNode = (i > 2) ? Nodes[i - 3] : null;
             const isRare = (node.rarityId === 1);
             const prevItemId = prevNode ? prevNode.itemId : -1;
             // ルート外の静的表示用ReRollFlag
             node.reRollFlag = isRare && (pool.length > 1) && (node.itemId !== -1) && (node.itemId === prevItemId);
             node.useSeeds = node.reRollFlag ? 3 : 2;
 
-            if (node.reRollFlag || (forceRerollMode && isRare && pool.length > 1)) {
+            // ★★★ 修正: ReRollFlagに関わらず、レアリティがレアでプールが複数なら常に再抽選候補を計算 ★★★
+            if (isRare && pool.length > 1) {
                  const reRollPool = pool.filter(id => id !== node.itemId);
                  if (reRollPool.length > 0) {
                      node.reRollSlot = node.seed3 % reRollPool.length;
@@ -461,14 +462,14 @@
                  } else {
                      node.reRollItemId = -1; node.reRollItemName = '---';
                  }
+                 // 仮にここが再抽選だった場合の次のアドレスも計算
+                 const nextIdxRe = i + 3;
+                 node.reRollNextAddress = getAddressString(nextIdxRe);
             } else {
                  node.reRollItemId = -1; node.reRollItemName = '---';
+                 node.reRollNextAddress = '-';
             }
             
-            // Next Address (Static)
-            const nextIdx = i + node.useSeeds;
-            node.reRollNextAddress = getAddressString(nextIdx);
-
             Nodes.push(node);
 
             // --- 詳細ログ生成 (No.X) ---
@@ -486,7 +487,8 @@
 
             lines.push(`(レア被り判定,消費SEED数) ReRollFlag[${node.index}]=${node.reRollFlag},useSeeds[${node.index}]=${node.useSeeds}`);
             
-            if (node.reRollFlag || (forceRerollMode && isRare && pool.length > 1)) {
+            // 再抽選データがあれば（静的フラグに関わらず）表示
+            if (node.reRollItemId !== -1) {
                  lines.push(`(再抽選スロット判定) ReRollSlot[${node.index}]=S3(${node.seed3})%(${pool.length-1})=${node.reRollSlot},ReRollItemID[${node.index}]=${node.reRollItemId},ReRollItemName[${node.index}]=${node.reRollItemName}`);
                  lines.push(`(再抽選後の遷移先番地) ReRollNextAddress[${node.index}]=${node.reRollNextAddress}`);
             }
