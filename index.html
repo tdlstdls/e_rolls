@@ -209,26 +209,26 @@
         .highlight-roll-10pull { background-color: #ffffe0 !important; } /* 10連 (黄) */
         .highlight-roll-overlap { background-color: #dfffb0 !important; } /* 重複 (緑) */
 
-        /* ハイライト用CSS (10ロールごとの濃い色) */
-        .highlight-roll-dark { background-color: #b3e5fc !important; } /* 濃い青 */
-        .highlight-roll-10pull-dark { background-color: #fff9c4 !important; } /* 濃い黄 */
-        .highlight-roll-overlap-dark { background-color: #c5e1a5 !important; } /* 濃い緑 */
+        /* ハイライト用CSS (10ロールごとの鮮やかな色) */
+        .highlight-roll-dark { background-color: #80d8ff !important; } /* 鮮やかな青 (Light Blue A100) */
+        .highlight-roll-10pull-dark { background-color: #ffff8d !important; } /* 鮮やかな黄 (Yellow A100) */
+        .highlight-roll-overlap-dark { background-color: #b9f6ca !important; } /* 鮮やかな緑 (Green A100) */
 
         /* モード別表示用 */
         /* Single Mode */
         .mode-single .highlight-roll { background-color: #e0f7ff !important; }
-        .mode-single .highlight-roll-dark { background-color: #b3e5fc !important; }
+        .mode-single .highlight-roll-dark { background-color: #80d8ff !important; }
         .mode-single .highlight-roll-overlap { background-color: #e0f7ff !important; } 
-        .mode-single .highlight-roll-overlap-dark { background-color: #b3e5fc !important; }
+        .mode-single .highlight-roll-overlap-dark { background-color: #80d8ff !important; }
         
         .mode-single .highlight-roll-10pull,
         .mode-single .highlight-roll-10pull-dark { background-color: #fff !important; }
 
         /* Multi Mode */
         .mode-multi .highlight-roll-10pull { background-color: #ffffe0 !important; }
-        .mode-multi .highlight-roll-10pull-dark { background-color: #fff9c4 !important; }
+        .mode-multi .highlight-roll-10pull-dark { background-color: #ffff8d !important; }
         .mode-multi .highlight-roll-overlap { background-color: #ffffe0 !important; }
-        .mode-multi .highlight-roll-overlap-dark { background-color: #fff9c4 !important; }
+        .mode-multi .highlight-roll-overlap-dark { background-color: #ffff8d !important; }
 
         .mode-multi .highlight-roll,
         .mode-multi .highlight-roll-dark { background-color: #fff !important; }
@@ -1012,6 +1012,25 @@
             node.rarity = getRarityFromRoll(s2 % 10000);
             node.rarityId = node.rarity.id;
 
+            // Guaranteed Item Calculation for Uncomp Node
+            const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
+            const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
+            const gDivisor = uberRate + legendRate;
+            if (gDivisor > 0) {
+                const gRoll = node.seed1 % gDivisor;
+                node.rarityGId = (gRoll < uberRate) ? '3' : '4';
+                const poolG = gacha.rarityItems[node.rarityGId] || [];
+                if (poolG.length > 0) {
+                    node.slotG = node.seed2 % poolG.length;
+                    node.itemGId = poolG[node.slotG];
+                    node.itemGName = itemMaster[node.itemGId]?.name || '---';
+                } else {
+                    node.slotG = 0; node.itemGId = -1; node.itemGName = '---';
+                }
+            } else {
+                node.rarityGId = null; node.itemGId = -1; node.itemGName = '---';
+            }
+
             const pool = gacha.rarityItems[node.rarityId] || [];
             node.poolSize = pool.length;
             if (pool.length > 0) {
@@ -1022,7 +1041,7 @@
                 node.slot = 0; node.itemId = -1; node.itemName = '---';
             }
             
-            // ReRoll Logic (Independent of path)
+            // ReRoll Logic
             const isRare = (node.rarityId === 1);
             if (isRare && pool.length > 1) {
                 const reRollPool = pool.filter(id => id !== node.itemId);
@@ -1037,16 +1056,11 @@
                 node.reRollItemId = -1; node.reRollItemName = '---';
             }
 
-            // Calculate Duplication Status based on Uncomp Node Detail Logic
-            // Logic: No.1,2,3 use LastRoll. No.4+ uses Node[i-4] (3seed back)
+            // Calculate Duplication Status
             let prevId = -1;
             if (i <= 3) {
                 prevId = initialLastRollId || -1;
             } else {
-                // i is 1-based. Nodes is 0-indexed.
-                // Node No.i -> Nodes[i-1].
-                // 3seed back node is Node No.i-3 -> Nodes[i-4].
-                // We are inside the loop for 'i', so Nodes[i-4] exists if i>3.
                 if (Nodes[i-4]) prevId = Nodes[i-4].itemId;
             }
             node.isDupe = (node.rarityId === 1 && node.itemId !== -1 && node.itemId === prevId);
@@ -1056,12 +1070,8 @@
             let lines = [];
             lines.push(`(番地) ${node.index}(${node.address})`);
             lines.push(`(目玉) isFeatured[${node.index}]=(S${seedStartIdx}(${node.seed1})%10000(=${node.seed1%10000})<${gacha.featuredItemRate})=${node.isFeatured}`);
-            
-            // 全パスの情報を表示
             lines.push(`(レアリティ) (S${seedStartIdx+1}(${node.seed2})%10000(=${node.seed2%10000})<=${thresholdStr})=${node.rarityId}(${node.rarity.name})`);
             
-            // 詳細アイテム行 (比較フォーマット適用)
-            // Uncomp: 1A, 1B, 1C (No.1-3) use LastRoll. No.4+ uses N-3.
             let prevIdForDetail = -1;
             let compTargetName = "Null";
             if (i <= 3) {
@@ -1070,7 +1080,6 @@
                     compTargetName = `LastRoll(${initialLastRollId})`;
                 }
             } else {
-                // No.4 (Index 4) compares with No.1 (Index 1). Nodes[i-1] is current. Nodes[i-4] is N-3.
                 const pNode = Nodes[i-4];
                 prevIdForDetail = pNode.itemId;
                 compTargetName = `Item[${pNode.index}]${pNode.itemId}`;
@@ -1113,12 +1122,8 @@
             if (isGuaranteedRoll) {
                 // Guaranteed Roll: 0 seed consumption, shows as "目玉(確定)"
                 const addrStr = `${sIdx}(${node.address})`;
-                
-                // Guaranteed cell logic: Merge with next roll.
-                // Log output:
                 singleRouteLog += `Roll${roll} guaranteed (番地) ${sIdx}+0=${sIdx}(${node.address})／Item[${roll}]=目玉(確定)／(レア被り)false(0seed消費)<br>`;
                 
-                // Store for table
                 tableRowData.push({
                     roll: roll,
                     isGuaranteed: true,
@@ -1129,11 +1134,8 @@
                     ngForLink: 30 
                 });
                 
-                // Update NG
                 let oldNg = currentNg;
-                currentNg = guaranteedCycle; // Reset to 30
-                
-                // Next roll starts at same index
+                currentNg = guaranteedCycle; 
                 continue; 
             }
 
@@ -1143,14 +1145,12 @@
             let itemName = '';
             let isFeat = false;
             let isReroll = false;
-            let rerollName = '';
-            let rerollNextAddr = '';
             
             if (node.isFeatured) {
                 isFeat = true;
                 usedSeeds = 1;
-                itemName = "目玉"; // Table display logic will handle link
-                finalId = -2; // Featured ID placeholder
+                itemName = "目玉"; 
+                finalId = -2; 
             } else {
                 const isRare = (node.rarityId === 1);
                 const poolSize = gacha.rarityItems[1] ? gacha.rarityItems[1].length : 0;
@@ -1158,16 +1158,15 @@
                 isReroll = isRare && isMatch && poolSize > 1;
                 
                 finalId = isReroll ? node.reRollItemId : node.itemId;
-                itemName = node.itemName; // Normal name
+                itemName = node.itemName;
                 
                 usedSeeds = isReroll ? 4 : 3;
-                sLastActualItemId = finalId; // Update last actual item
+                sLastActualItemId = finalId; 
             }
 
             const nextIdx = sIdx + usedSeeds;
             const nextAddr = getAddressString(nextIdx);
             
-            // Log String Generation
             let line = `Roll${roll} (番地) ${sIdx}(${node.address})`;
             if (isFeat) {
                  line += `／Item[${roll}]=目玉`;
@@ -1329,6 +1328,15 @@
             table += `<tr><td class="col-no">${r + 1}</td>`;
             const nodeIndices = [r * 3 + 1, r * 3 + 2, r * 3 + 3];
             
+            // Next Guaranteed Logic Check for Uncomp (Single Route)
+            const currentRollNum = r + 1;
+            let isNextGuaranteedTarget = false;
+            if (!isNaN(ngVal) && gacha.uberGuaranteedFlag) {
+                // Logic: Roll == NG OR (Roll > NG && (Roll - NG) % 30 == 0)
+                if (currentRollNum === ngVal) isNextGuaranteedTarget = true;
+                else if (currentRollNum > ngVal && (currentRollNum - ngVal) % 30 === 0) isNextGuaranteedTarget = true;
+            }
+
             nodeIndices.forEach(idx => {
                 const node = Nodes[idx - 1];
                 if (!node) {
@@ -1366,6 +1374,11 @@
                         content += `<br>${node.reRollNextAddress})<a href="${rrHref}" class="${rrCss}">${rrName}</a>`;
                     }
                 }
+                
+                // Overwrite content if it's a Guaranteed Target on Single Route
+                if (isNextGuaranteedTarget && singleRoutePath.has(idx)) {
+                    content = `<span class="featuredItem-text">目玉(確定)</span><br>/${node.itemGName}`;
+                }
 
                 if (displaySeed === '1') {
                     const sub1 = `(S${(idx-1)*3+1})${node.seed1}<br>${node.seed1%10000}<br>${node.isFeatured}`;
@@ -1383,9 +1396,10 @@
 
             // G Column
             let gStyle = '';
-            if (r < 10) {
-                if (r === 9) gStyle = 'background-color: #fff9c4;'; // 10th row (index 9) -> Darker
-                else gStyle = 'background-color: #ffffe0;';
+            if (r < 9) {
+                gStyle = 'background-color: #ffffe0;';
+            } else if (r === 9) { // 10th row
+                gStyle = 'background-color: #ffff8d;'; 
             }
             
             if (tenPullResults[r]) {
