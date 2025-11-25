@@ -596,7 +596,42 @@
             }
 
             const fmt = getFormattedItemComparison(node.itemName, node.itemId, node.rarityId, prevIdForDetail, compTargetName);
-            lines.push(`(スロット,アイテム) S2(${node.seed2})%${node.poolSize}=${node.slot}, Item[${node.index}]=${fmt.text}${fmt.isDupe ? 'レア被り' : ''}`);
+
+            // --- 連続レア被り(ReRollItemとの比較)チェック ---
+            let additionalInfo = '';
+            let isConsecutiveDupe = false;
+
+            // 3SEED前のノード（ReRollルート元）が存在するか確認
+            if (i > 3) {
+                const pNodeRe = Nodes[i-4]; // i-4 index matches No.(i-3)
+                // 条件: 
+                // 1. 現在がレア (暗黙的だが、重複チェックは通常レアのみ)
+                // 2. 元ノードが実際にレア被り(ReRoll)を起こしていた (pNodeRe.reRollFlag === true)
+                // 3. 現在のアイテムIDが、元ノードの再抽選アイテムと一致
+                if (node.rarityId === 1 && pNodeRe.reRollFlag && node.itemId === pNodeRe.reRollItemId) {
+                     additionalInfo = `,= ReRollItem[${pNodeRe.index}]${pNodeRe.reRollItemId}`;
+                     isConsecutiveDupe = true;
+                }
+            }
+            
+            let displayedText = fmt.text;
+            if (additionalInfo) {
+                // fmt.textは末尾が ')' で終わる形式なので、その内側に追記
+                if (displayedText.endsWith(')')) {
+                    displayedText = displayedText.slice(0, -1) + additionalInfo + ')';
+                } else {
+                    displayedText += additionalInfo;
+                }
+            }
+
+            let suffix = '';
+            if (fmt.isDupe) {
+                suffix = 'レア被り';
+            } else if (isConsecutiveDupe) {
+                suffix = ' 連続レア被り';
+            }
+
+            lines.push(`(スロット,アイテム) S2(${node.seed2})%${node.poolSize}=${node.slot}, Item[${node.index}]=${displayedText}${suffix}`);
             
             if (node.rarityGId) {
                 lines.push(`(スロット,アイテム(確定)) S2(${node.seed2})%${node.poolGSize}=${node.slotG}, ItemG[${node.index}]=${formatItem(node.itemGId)}`);
