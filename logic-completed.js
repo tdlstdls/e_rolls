@@ -4,31 +4,16 @@
  */
 
 function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, initialNg) {
-    // 1. シード生成
-    // シミュレーションで最大1000ロール、表示で数百行を想定し、十分なシードを確保
-    // 1チケットあたり最大3〜4シード消費することを考慮し、余裕を持った数に設定
     const maxSeedsNeeded = Math.max(tableRows * 10, 5000) + 1000;
     const SEED = generateSeedList(initialSeed, maxSeedsNeeded);
-
-    // ヘルパー
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const Nodes = [];
-    
-    // 1000ロールのシミュレーションに対応するため、ノード生成数を引き上げ
-    // (通常、1ロールでインデックスが2〜3進むため、1000ロール分なら3000以上のノードが必要)
     const maxNodeIndex = Math.max(tableRows * 3, 3500);
 
-    // 2. ノード計算 (No.1 ～ maxNodeIndex)
     for (let i = 1; i <= maxNodeIndex; i++) {
         const node = {
             index: i,
             address: getAddress(i),
-            /**
-             * 【シード消費の定義】
-             * seed1 (SEED[i]):   レアリティ判定に使用される
-             * seed2 (SEED[i+1]): アイテムスロット（通常/確定枠）の抽選に使用される
-             * seed3 (SEED[i+2]): レア重複時の再抽選スロットに使用される
-             */
             seed1: SEED[i],
             seed2: SEED[i+1],
             seed3: SEED[i+2],
@@ -41,7 +26,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
         node.rarityId = node.rarity.id;
         node.roll1 = roll1;
 
-        // 確定枠（超激レア/伝説レア）の判定計算
         const uberRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 0) : 0;
         const legendRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 0) : 0;
         const gDivisor = uberRate + legendRate;
@@ -55,7 +39,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             node.rarityGName = '-'; node.gRoll = 0; node.gDivisor = 0;
         }
 
-        // 通常アイテム抽選 (使用シード: seed2)
         const pool = gacha.rarityItems[node.rarityId] || [];
         node.poolSize = pool.length;
         if (pool.length > 0) {
@@ -67,7 +50,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             node.itemId = -1; node.itemName = '---';
         }
 
-        // 確定枠アイテム抽選 (使用シード: seed2)
         const poolG = node.rarityGId ? (gacha.rarityItems[node.rarityGId] || []) : [];
         node.poolGSize = poolG.length;
         if (poolG.length > 0) {
@@ -79,19 +61,16 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             node.itemGId = -1; node.itemGName = '---';
         }
 
-        // 重複再抽選 (ReRoll) の判定用ロジック
         const prevNode = (i > 2) ? Nodes[i - 3] : null;
         const isRare = (node.rarityId === 1);
         const prevItemId = prevNode ? (prevNode.reRollFlag ? prevNode.reRollItemId : prevNode.itemId) : initialLastRollId;
         
-        // レアリティがレア、かつ前回アイテムと一致する場合に再抽選フラグを立てる
         node.reRollFlag = isRare && (pool.length > 1) && (node.itemId !== -1) && (node.itemId === prevItemId);
         node.useSeeds = node.reRollFlag ? 3 : 2;
 
         if (isRare && pool.length > 1) {
              const reRollPool = pool.filter(id => id !== node.itemId);
              if (reRollPool.length > 0) {
-                 // 再抽選スロット判定 (使用シード: seed3)
                  node.reRollSlot = node.seed3 % reRollPool.length;
                  node.reRollItemId = reRollPool[node.reRollSlot];
                  node.reRollItemName = getItemNameSafe(node.reRollItemId);
@@ -109,7 +88,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
         Nodes.push(node);
     }
 
-    // 3. 単発ルート計算
     let sIdx = 1;
     let sLastItemId = initialLastRollId || -1;
     let sRoll = 1;
@@ -121,7 +99,7 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
         if (isGuaranteedRoll) {
             if (node) {
                 node.singleRoll = `${sRoll}g`;
-                node.singleUseSeeds = 2; // レア判定(1) + 確定スロット(1)
+                node.singleUseSeeds = 2;
                 node.singleNextAddr = getAddress(sIdx + 2);
             }
             sLastItemId = node ? node.itemGId : -1;
@@ -131,7 +109,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             const poolSize = gacha.rarityItems[1] ? gacha.rarityItems[1].length : 0;
             const isMatch = (node && node.itemId !== -1 && node.itemId === sLastItemId);
             const reRollFlag = isRare && isMatch && poolSize > 1;
-            
             const useSeeds = reRollFlag ? 3 : 2;
             const finalId = (node && reRollFlag) ? node.reRollItemId : (node ? node.itemId : -1);
             if (node) {
@@ -145,11 +122,9 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
         sRoll++;
     }
 
-    // 4. 10連ルート計算
     let tIdx = 1;
     let tRoll = 1;
     let tLastItemId = initialLastRollId || -1; 
-
     while (tIdx <= maxNodeIndex && tRoll <= tableRows) {
         const isCycleStart = (tRoll - 1) % 10 === 0;
         const isGuaranteedRoll = hasGuaranteed && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (tRoll >= ngVal) && ((tRoll - ngVal) % 10 === 0);
@@ -179,7 +154,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
                 const poolSize = gacha.rarityItems[1] ? gacha.rarityItems[1].length : 0;
                 const isMatch = (node && node.itemId !== -1 && node.itemId === tLastItemId);
                 const reRollFlag = isRare && isMatch && poolSize > 1;
-
                 const useSeeds = reRollFlag ? 3 : 2;
                 const finalId = (node && reRollFlag) ? node.reRollItemId : (node ? node.itemId : -1);
                 if (node) {
@@ -194,7 +168,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
         tRoll++;
     }
 
-    // 5. highlightInfo 生成
     const highlightInfo = new Map();
     sIdx = 1;
     sLastItemId = initialLastRollId || -1;
@@ -216,7 +189,6 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             const reRollFlag = isRare && isMatch && poolSize > 1;
             const useSeeds = reRollFlag ? 3 : 2;
             const finalId = (node && reRollFlag) ? node.reRollItemId : (node ? node.itemId : -1);
-            
             const info = highlightInfo.get(node.address) || {};
             info.single = true; info.singleRoll = roll; 
             info.s_reRoll = reRollFlag;
@@ -258,10 +230,8 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
                 const useSeeds = reRollFlag ? 3 : 2;
                 let finalId = node.itemId;
                 if (reRollFlag) finalId = node.reRollItemId;
-                
                 const info = highlightInfo.get(node.address) || {};
-                info.ten = true;
-                info.tenRoll = roll; 
+                info.ten = true; info.tenRoll = roll; 
                 info.t_reRoll = reRollFlag;
                 if (reRollFlag) {
                     info.t_normalName = node.itemName;
@@ -274,22 +244,21 @@ function calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initi
             }
         }
     }
-
     return { Nodes, highlightInfo, maxNodeIndex };
 }
 
 /**
- * ビームサーチによる最適ガチャルートのシミュレーション
+ * ビームサーチ（DP）による最適ガチャルートのシミュレーション
  */
-function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg) {
+function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg, targetLayers = []) {
     const ngVal = parseInt(initialNg);
     const hasGuaranteed = !isNaN(ngVal);
 
-    // 単一ロールのシミュレーションヘルパー
     const simulateRoll = (node, lastId, rollNum) => {
         const isGuaranteed = hasGuaranteed && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (rollNum >= ngVal) && ((rollNum - ngVal) % 10 === 0);
         if (isGuaranteed) {
-            return { itemId: node.itemGId, itemName: node.itemGName, useSeeds: 2, rarity: itemMaster[node.itemGId]?.rarity || 0 };
+            const finalId = node.itemGId;
+            return { itemId: finalId, itemName: node.itemGName, useSeeds: 2, rarity: itemMaster[finalId]?.rarity || 0 };
         } else {
             const pool = gacha.rarityItems[node.rarityId] || [];
             const isMatch = (node.itemId !== -1 && node.itemId === lastId);
@@ -299,34 +268,49 @@ function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thres
         }
     };
 
-    // dp[チケット消費数] = Map( "nodeIdx_lastId" => { score, path, ubers, legends, nodeIdx, lastId, rollCount } )
     let dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
+    
+    // 状態に各階層の獲得数を保持させる
     dp[0].set(`1_${initialLastRollId}`, {
-        nodeIdx: 1,
-        lastId: initialLastRollId,
-        ubers: 0,
-        legends: 0,
-        path: [],
-        rollCount: 1
+        nodeIdx: 1, lastId: initialLastRollId, 
+        layerCounts: new Array(targetLayers.length).fill(0),
+        ubers: 0, legends: 0, path: [], rollCount: 1
     });
+
+    const calculateScore = (state) => {
+        let score = 0;
+        // 階層ごとに巨大な重みを付ける (Layer 0 = 最高優先)
+        for (let i = 0; i < state.layerCounts.length; i++) {
+            const weight = Math.pow(1000, targetLayers.length - i + 1);
+            score += state.layerCounts[i] * weight;
+        }
+        score += (state.ubers * 10) + state.legends;
+        return score;
+    };
+
     const updateDP = (map, state) => {
         const key = `${state.nodeIdx}_${state.lastId}`;
-        const currentScore = state.ubers * 1000 + state.legends; // 超激レア優先
+        const currentScore = calculateScore(state);
         const existing = map.get(key);
-        if (!existing || (existing.ubers * 1000 + existing.legends) < currentScore) {
+        if (!existing || calculateScore(existing) < currentScore) {
             map.set(key, state);
         }
     };
 
     for (let t = 0; t < totalTickets; t++) {
         for (let state of dp[t].values()) {
-            // 1. 単発ロール (消費1)
             const nodeS = Nodes[state.nodeIdx - 1];
             if (nodeS) {
                 const res = simulateRoll(nodeS, state.lastId, state.rollCount);
+                const newLayerCounts = [...state.layerCounts];
+                targetLayers.forEach((layerIds, idx) => {
+                    if (layerIds.includes(res.itemId)) newLayerCounts[idx]++;
+                });
+
                 updateDP(dp[t + 1], {
                     nodeIdx: state.nodeIdx + res.useSeeds,
                     lastId: res.itemId,
+                    layerCounts: newLayerCounts,
                     ubers: state.ubers + (res.rarity === 3 ? 1 : 0),
                     legends: state.legends + (res.rarity === 4 ? 1 : 0),
                     path: state.path.concat({ type: 'single', item: res.itemName, addr: nodeS.address }),
@@ -334,12 +318,12 @@ function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thres
                 });
             }
 
-            // 2. 10連ロール (消費10)
             if (t + 10 <= totalTickets) {
-                let curIdx = state.nodeIdx + 1; // サイクルスタート分 +1
+                let curIdx = state.nodeIdx + 1;
                 let curLastId = state.lastId;
                 let curRollCount = state.rollCount;
                 let items = [], ubers = 0, legends = 0;
+                let addLayerCounts = new Array(targetLayers.length).fill(0);
                 let startAddr = Nodes[state.nodeIdx - 1]?.address || '??';
 
                 for (let i = 0; i < 10; i++) {
@@ -347,6 +331,9 @@ function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thres
                     if (!node) break;
                     const res = simulateRoll(node, curLastId, curRollCount);
                     items.push(res.itemName);
+                    targetLayers.forEach((layerIds, idx) => {
+                        if (layerIds.includes(res.itemId)) addLayerCounts[idx]++;
+                    });
                     if (res.rarity === 3) ubers++;
                     if (res.rarity === 4) legends++;
                     curIdx += res.useSeeds;
@@ -355,12 +342,13 @@ function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thres
                 }
 
                 if (items.length === 10) {
+                    const nextLayerCounts = state.layerCounts.map((c, idx) => c + addLayerCounts[idx]);
                     updateDP(dp[t + 10], {
-                        nodeIdx: curIdx,
-                        lastId: curLastId,
-                        ubers: state.ubers + ubers,
-                        legends: state.legends + legends,
-                        path: state.path.concat({ type: 'ten', items: items, addr: startAddr }),
+                        nodeIdx: curIdx, lastId: curLastId, 
+                        layerCounts: nextLayerCounts,
+                        ubers: state.ubers + ubers, 
+                        legends: state.legends + legends, 
+                        path: state.path.concat({ type: 'ten', items: items, addr: startAddr }), 
                         rollCount: curRollCount
                     });
                 }
@@ -368,11 +356,10 @@ function runGachaBeamSearch(Nodes, initialLastRollId, totalTickets, gacha, thres
         }
     }
 
-    // dp[totalTickets] の中で最高スコアのものを探す
     let best = null;
     let maxScore = -1;
     for (let state of dp[totalTickets].values()) {
-        const score = state.ubers * 1000 + state.legends;
+        const score = calculateScore(state);
         if (score > maxScore) {
             maxScore = score;
             best = state;
