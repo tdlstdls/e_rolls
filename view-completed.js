@@ -126,7 +126,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
     }
     
     let table = `<table style="table-layout: fixed;" class="${currentHighlightMode === 'single' ? 'mode-single' : (currentHighlightMode === 'multi' ? 'mode-multi' : '')}"><thead>`;
-    table += `<tr><th id="forceRerollToggle" class="col-no" style="cursor: pointer;">${window.forceRerollMode ? '☑' : '□'}</th><th>A</th><th>AG</th><th><th>B</th><th>BG</th></tr>`;
+    table += `<tr><th id="forceRerollToggle" class="col-no" style="cursor: pointer;">${window.forceRerollMode ? '☑' : '□'}</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr>`;
     table += '</thead><tbody>';
     for (let r = 1; r <= tableRows; r++) {
         const nodeIdxA = (r - 1) * 2 + 1, nodeIdxB = (r - 1) * 2 + 2;
