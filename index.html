@@ -1,9 +1,4 @@
-/**
- * 担当: アプリケーションの全体構造定義と外部リソースの読み込み
- * 依存関係: style.css, master.js, utils.js, logic-*.js, view-*.js, main.js
- */
- 
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -32,8 +27,7 @@
                         <span id="legendMulti" class="legend-box legend-multi">10連ルート</span>
                         <span id="legendCommon" class="legend-box legend-common">共通ルート</span>
                     </div>
-                    <div id="lastRollDisplay" class="input-item-display-only">
-                        </div>
+                    <div id="lastRollDisplay" class="input-item-display-only"></div>
                 </div>
                 <div class="control-group-right">
                     <div class="input-item">
@@ -78,7 +72,11 @@
 <script src="logic-completed.js"></script>
 <script src="logic-uncompleted-sim.js"></script>
 <script src="logic-uncompleted.js"></script>
-<script src="view-completed.js"></script>
+
+<script src="view-completed-details-render.js"></script>
+<script src="view-completed-path-sim.js"></script>
+<script src="view-completed-main.js"></script>
+
 <script src="view-uncompleted-details.js"></script>
 <script src="view-uncompleted-table.js"></script>
 <script src="view-uncompleted.js"></script>

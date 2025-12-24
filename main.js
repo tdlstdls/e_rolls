@@ -3,38 +3,6 @@
  * 依存関係: master.js, logic-*.js, view-*.js (全機能の統括)
  */
 
-/**
- * 【データ相関・アプリケーションフロー図】
- * * [ Entry Point ]
- * index.html (構造定義・外部スクリプト読込)
- * ↓
- * [ Master Data ]
- * master.js (ガチャ設定・アイテムリスト)
- * ↓
- * [ Helpers & Common ]
- * utils.js (URL生成・シード生成・共通パーツ)
- * logic-common.js (レアリティ判定・アドレス計算共通)
- * ↓
- * [ Controller ]
- * main.js (URLパラメータ取得・ビューの切り替え・イベント管理)
- * │
- * ├─→ <コンプ済み (Completed) ビュー表示時>
- * │     │
- * │     ├─ [Logic] logic-completed.js (全ルートのノード計算)
- * │     └─ [View]  view-completed.js (統合テーブル・計算詳細描画)
- * │
- * └─→ <未コンプ (Uncompleted) ビュー表示時>
- * │
- * ├─ [Logic] logic-uncompleted.js (メインノード計算)
- * │     └─ logic-uncompleted-sim.js (10連シミュレーション・期待値計算)
- * │
- * └─ [View]  view-uncompleted.js (描画統括)
- * ├─ view-uncompleted-table.js (メインテーブル・期待値表示)
- * └─ view-uncompleted-details.js (単発計算過程・10連詳細表示)
- * * [ Styling ]
- * style.css (全画面のレイアウト・ハイライト色定義)
- */
-
 // --- グローバル変数 ---
 const DEFAULT_PARAMS = {
     gacha: '45',
@@ -53,7 +21,7 @@ let currentHighlightMode = 'all'; // 'all', 'single', 'multi'
 let activeGachaId;
 let forceRerollMode = false;
 
-// グローバルスコープへ公開（viewスクリプトからの参照用）
+// グローバルスコープへ公開
 window.activeGachaId = activeGachaId;
 window.forceRerollMode = forceRerollMode;
 
@@ -68,24 +36,30 @@ function runSimulationAndDisplay(options = {}) {
     ['gacha', 'seed', 'ng', 'fs', 'lr', 'comp', 'tx', 'roll', 'displaySeed'].forEach(k => {
         p[k] = params.get(k);
     });
+
+    // パラメータのデフォルト補完
     if (!p.gacha || !gachaMaster[p.gacha]) p.gacha = latestGachaId;
     if (!p.seed) p.seed = DEFAULT_PARAMS.seed;
     if (!p.roll) p.roll = DEFAULT_PARAMS.roll;
     if (!p.ng) p.ng = DEFAULT_PARAMS.ng;
     if (p.tx === 'true') p.tx = '1'; else if (p.tx === 'false') p.tx = '0';
     if (!p.tx && DEFAULT_PARAMS.tx) p.tx = '1';
-    if (p.comp === '1') p.comp = 'true'; else if (p.comp === '0') p.comp = 'false';
+    if (p.comp === '1') p.comp = 'true';
+    else if (p.comp === '0') p.comp = 'false';
     
+    // UIやクリックイベントからのオーバーライド適用
     if (uiOverrides.seed !== undefined) p.seed = uiOverrides.seed;
     if (uiOverrides.guaranteedRolls !== undefined) p.ng = uiOverrides.guaranteedRolls;
     if (uiOverrides.featuredStock !== undefined) p.fs = uiOverrides.featuredStock;
     if (uiOverrides.isComplete !== undefined) p.comp = uiOverrides.isComplete ? 'true' : 'false';
+    if (uiOverrides.lr !== undefined) p.lr = uiOverrides.lr;
     
     activeGachaId = p.gacha;
-    window.activeGachaId = activeGachaId; // 更新
+    window.activeGachaId = activeGachaId;
     
     const gacha = gachaMaster[p.gacha];
     
+    // UI状態の同期
     document.getElementById('seedInput').value = p.seed;
     const isComplete = (p.comp === 'true');
     document.getElementById('featuredCompleteCheckbox').checked = isComplete;
@@ -121,27 +95,35 @@ function runSimulationAndDisplay(options = {}) {
         guaranteedControl.classList.remove('hidden-control');
         legendDisplay.classList.remove('hidden-control');
         populateGuaranteedRolls(gacha.guaranteedCycle || 30, p.ng);
-        legendCommon.style.display = 'none'; 
+        legendCommon.style.display = 'none';
     }
 
     const lastRollDisplay = document.getElementById('lastRollDisplay');
     if (p.lr && itemMaster[p.lr]) {
         lastRollDisplay.textContent = `LastRoll: ${itemMaster[p.lr].name}`;
+    } else if (p.lr === '-2') {
+        lastRollDisplay.textContent = `LastRoll: 目玉アイテム`;
     } else {
         lastRollDisplay.textContent = '';
     }
 
+    // 新しいパラメータでURLを更新
     const newParams = {
-        gacha: p.gacha, seed: p.seed, ng: p.ng, fs: p.fs, lr: p.lr,
+        gacha: p.gacha, 
+        seed: p.seed, 
+        ng: p.ng, 
+        fs: p.fs, 
+        lr: p.lr,
         comp: isComp ? 'true' : 'false',
-        tx: (p.tx === '1' || (!hideSeedInput && document.getElementById('seedRow').classList.contains('hidden-control') === false)) ? '1' : '0',
-        roll: p.roll, displaySeed: p.displaySeed
+        tx: (p.tx === '1' || (!hideSeedInput && !document.getElementById('seedRow').classList.contains('hidden-control'))) ? '1' : '0',
+        roll: p.roll, 
+        displaySeed: p.displaySeed
     };
-    if (!hideSeedInput && document.getElementById('seedRow').style.display === 'flex') newParams.tx = '1';
 
     const newQuery = generateUrlQuery(newParams);
     window.history.replaceState({ path: newQuery }, '', `${window.location.pathname}${newQuery}`);
 
+    // 数値変換と描画実行
     const seedValue = parseInt(p.seed, 10);
     const lastRollId = p.lr ? parseInt(p.lr, 10) : null;
     const rows = parseInt(p.roll, 10);
@@ -166,7 +148,8 @@ function populateGuaranteedRolls(max, currentVal) {
     const unsetOption = document.createElement('option');
     unsetOption.value = 'none'; unsetOption.textContent = '未設定'; input.appendChild(unsetOption);
     for (let i = 1; i <= max; i++) {
-        const option = document.createElement('option'); option.value = i; option.textContent = i; input.appendChild(option);
+        const option = document.createElement('option');
+        option.value = i; option.textContent = i; input.appendChild(option);
     }
     if (currentVal && input.querySelector(`option[value="${currentVal}"]`)) {
         input.value = currentVal;
@@ -174,6 +157,7 @@ function populateGuaranteedRolls(max, currentVal) {
         input.value = 'none';
     }
 }
+
 function populateFeaturedStockInput(gachaId, preferredValue) {
     const gacha = gachaMaster[gachaId];
     const input = document.getElementById('featuredStockInput');
@@ -182,7 +166,8 @@ function populateFeaturedStockInput(gachaId, preferredValue) {
     const unsetOption = document.createElement('option');
     unsetOption.value = 'none'; unsetOption.textContent = '-'; input.appendChild(unsetOption);
     for (let i = 1; i <= gacha.featuredItemStock; i++) {
-        const option = document.createElement('option'); option.value = i; option.textContent = i; input.appendChild(option);
+        const option = document.createElement('option');
+        option.value = i; option.textContent = i; input.appendChild(option);
     }
     if (preferredValue && preferredValue !== 'none' && input.querySelector(`option[value="${preferredValue}"]`)) {
         input.value = preferredValue;
@@ -204,10 +189,20 @@ function toggleSeedInput() {
 document.addEventListener('DOMContentLoaded', () => {
     setupGachaRarityItems(); // from utils.js
 
-    document.getElementById('executeButton').addEventListener('click', () => runSimulationAndDisplay({ hideSeedInput: true, uiOverrides: { seed: document.getElementById('seedInput').value } }));
+    // 更新ボタン
+    document.getElementById('executeButton').addEventListener('click', () => {
+        runSimulationAndDisplay({ 
+            hideSeedInput: true, 
+            uiOverrides: { seed: document.getElementById('seedInput').value } 
+        });
+    });
+
+    // 各種設定変更
     document.getElementById('guaranteedRollsInput').addEventListener('change', (e) => runSimulationAndDisplay({ uiOverrides: { guaranteedRolls: e.target.value } }));
     document.getElementById('featuredStockInput').addEventListener('change', (e) => runSimulationAndDisplay({ uiOverrides: { featuredStock: e.target.value } }));
     document.getElementById('featuredCompleteCheckbox').addEventListener('change', () => runSimulationAndDisplay({ uiOverrides: { isComplete: document.getElementById('featuredCompleteCheckbox').checked } }));
+
+    // シードコピー
     document.getElementById('copySeedLink').addEventListener('click', (event) => {
         event.preventDefault();
         const seedToCopy = new URLSearchParams(window.location.search).get('seed');
@@ -219,10 +214,41 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
+
+    // テーブル内クリックイベント（アイテム選択による遷移）
     document.getElementById('result-table-container').addEventListener('click', (event) => {
+        // 再抽選強制モード切り替え
         if (event.target.id === 'forceRerollToggle') {
             window.forceRerollMode = !window.forceRerollMode;
             runSimulationAndDisplay();
+            return;
+        }
+
+        // クリックされた要素がアイテム（clickable-itemクラス）か確認
+        const target = event.target.closest('.clickable-item');
+        if (target) {
+            event.preventDefault();
+            
+            // data属性から次状態のパラメータを抽出
+            const nextSeed = target.getAttribute('data-seed');
+            const nextLr = target.getAttribute('data-lr');
+            const nextNg = target.getAttribute('data-ng');
+            const nextFs = target.getAttribute('data-fs');
+            const isComp = target.getAttribute('data-comp') === 'true';
+
+            // 即座に再計算・描画
+            runSimulationAndDisplay({
+                uiOverrides: {
+                    seed: nextSeed,
+                    lr: nextLr,
+                    guaranteedRolls: nextNg,
+                    featuredStock: nextFs,
+                    isComplete: isComp
+                }
+            });
+
+            // 視認性向上のためトップへスクロール
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     });
 
@@ -245,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             applyHighlightMode();
         }
     });
+
     document.getElementById('legendMulti').addEventListener('click', () => {
         if (document.getElementById('featuredCompleteCheckbox').checked) {
             currentHighlightMode = (currentHighlightMode === 'multi') ? 'all' : 'multi';
