@@ -28,15 +28,16 @@ function getRarityFromRoll(roll, thresholds) {
 }
 
 /**
- * アドレス文字列 (1A, 1B, 2A...) を生成する
+ * アドレス文字列 (A1, B1, A2...) を生成する
  * cols: 列数 (completed=2, uncompleted=3)
+ * 修正: 番地表示を [行][列] から [列][行] (例: B15) に変更
  */
 function getAddressStringGeneric(n, cols) {
     if (n <= 0) return '';
     const zeroBasedIndex = n - 1;
     const col_char = String.fromCharCode('A'.charCodeAt(0) + (zeroBasedIndex % cols));
     const row_num = Math.floor(zeroBasedIndex / cols) + 1;
-    return `${row_num}${col_char}`;
+    return `${col_char}${row_num}`;
 }
 
 /**
@@ -55,13 +56,15 @@ function determineHighlightClass(info) {
     let cls = '';
     const isSingle10 = info.single && (info.singleRoll % 10 === 0);
     const isTen10 = info.ten && (info.tenRoll % 10 === 0);
-    
     if (info.single && info.ten) {
-        cls = (isSingle10 || isTen10) ? 'highlight-roll-overlap-dark' : 'highlight-roll-overlap';
+        cls = (isSingle10 || isTen10) ?
+            'highlight-roll-overlap-dark' : 'highlight-roll-overlap';
     } else if (info.single) {
-        cls = isSingle10 ? 'highlight-roll-dark' : 'highlight-roll';
+        cls = isSingle10 ?
+            'highlight-roll-dark' : 'highlight-roll';
     } else if (info.ten) {
-        cls = isTen10 ? 'highlight-roll-10pull-dark' : 'highlight-roll-10pull';
+        cls = isTen10 ?
+            'highlight-roll-10pull-dark' : 'highlight-roll-10pull';
     }
     return cls;
 }

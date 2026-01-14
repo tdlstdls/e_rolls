@@ -47,19 +47,10 @@ function renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, exp
     let table = expectedValueHtml;
     table += '<table style="table-layout: fixed;"><thead>';
     
-    let header1 = `<tr><th rowspan="${displaySeed === '1' ? 2 : 1}" id="forceRerollToggle" class="col-no" style="cursor: pointer;">${window.forceRerollMode ? '☑' : '□'}</th>`;
-    let header2 = '<tr>';
-
-    if (displaySeed === '1') {
-        header1 += '<th colspan="5">A</th><th colspan="5">B</th><th colspan="5">C</th><th colspan="5">G</th>';
-        const subHeaders = ['S1<br>Feat', 'S2<br>Rare', 'S3<br>Slot', 'S4<br>Re', 'Item'];
-        for(let i=0; i<4; i++) header2 += subHeaders.map(h => `<th>${h}</th>`).join('');
-    } else {
-        header1 += '<th>A</th><th>B</th><th>C</th><th>G</th>';
-    }
+    let header1 = `<tr><th id="forceRerollToggle" class="col-no" style="cursor: pointer;">${window.forceRerollMode ? '☑' : '□'}</th>`;
+    header1 += '<th>A</th><th>B</th><th>C</th><th>G</th>';
     header1 += '</tr>';
-    
-    if (displaySeed === '1') { header2 += '</tr>'; table += header1 + header2; } else { table += header1; }
+    table += header1;
     table += '</thead><tbody>';
 
     // --- メインループ変数の初期化 ---
@@ -232,18 +223,10 @@ function renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, exp
             }
 
             // --- セルHTML生成 ---
-            if (displaySeed === '1') {
-                const sub1 = `(S${(idx-1)*3+1})${node.seed1}<br>${node.seed1%10000}<br>${node.isFeatured}`;
-                const sub2 = `(S${(idx-1)*3+2})${node.seed2}<br>${node.seed2%10000}<br>${node.rarity.name}`;
-                const sub3 = `(S${(idx-1)*3+3})${node.seed3}<br>${node.poolSize}<br>${node.slot}`;
-                let sub4 = '---';
-                if (!node.isFeatured && node.reRollItemId !== -1) {
-                    sub4 = `(S${(idx-1)*3+4})${node.seed4}<br>ReRoll`;
-                }
-                table += `<td${cls ? ' class="'+cls+'"' : ''}>${sub1}</td><td${cls ? ' class="'+cls+'"' : ''}>${sub2}</td><td${cls ? ' class="'+cls+'"' : ''}>${sub3}</td><td${cls ? ' class="'+cls+'"' : ''}>${sub4}</td><td${cls ? ' class="'+cls+'"' : ''}>${content}</td>`;
-            } else {
-                table += `<td${cls ? ' class="'+cls+'"' : ''}>${content}</td>`;
+            if (displaySeed === '1' && node) {
+                content += `<br><span class="seed-value" style="font-size: 0.7em; color: #888;">${node.seed1}</span>`;
             }
+            table += `<td${cls ? ' class="'+cls+'"' : ''}>${content}</td>`;
         });
 
         // --- G Column Logic (10連ガチャシミュレーション結果) ---
@@ -295,9 +278,11 @@ function renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, exp
                 }
             }
         }
-        
-        if (displaySeed === '1') table += `<td colspan="5" style="${gStyle}">${gContent}</td>`;
-        else table += `<td style="${gStyle}">${gContent}</td>`;
+        if (displaySeed === '1' && tenPullDetailData && tenPullDetailData.transition) {
+            // 10連シミュレーションの結果がある場合、SEED情報を追記
+             gContent += `<br><span class="seed-value" style="font-size: 0.7em; color: #888;">${tenPullDetailData.transition.nextSeed}</span>`;
+        }
+        table += `<td style="${gStyle}">${gContent}</td>`;
         table += '</tr>';
     }
     table += '</tbody></table>';

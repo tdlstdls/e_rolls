@@ -1,0 +1,205 @@
+// =================================================================================
+// 最適ルート探索（ビームサーチ）
+// =================================================================================
+
+function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes, nodeInit = null) {
+    const node = Nodes[startIdx - 1];
+    if (!node) return null;
+
+    const gCycle = gacha.guaranteedCycle || 30;
+    const isGuar = !isNaN(currentNg) && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (rollNum >= currentNg) && ((rollNum - currentNg) % 10 === 0);
+    
+    if (isGuar && nodeInit) { // 10連内の確定
+        const poolG = gacha.rarityItems[nodeInit.rarityGId] || [];
+        const slotG = node.seed1 % Math.max(1, poolG.length);
+        const itemIdG = poolG[slotG];
+        return { itemId: itemIdG, useSeeds: 1, rarity: itemMaster[itemIdG]?.rarity || 0, nextNg: gCycle };
+    } else if (isGuar) { // 単発の確定
+        return { itemId: node.itemGId, useSeeds: 2, rarity: itemMaster[node.itemGId]?.rarity || 0, nextNg: gCycle };
+    } else { // 通常
+        const isMatch = (node.itemId !== -1 && node.itemId === lastId);
+        const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
+        let finalId = node.itemId;
+        if (isRR) {
+            const pool = gacha.rarityItems[node.rarityId] || [];
+            const filtered = pool.filter(id => id !== node.itemId);
+            if (filtered.length > 0) {
+                finalId = filtered[node.seed3 % Math.max(1, filtered.length)];
+            }
+        }
+        const nextNg = (currentNg <= 1) ? gCycle : currentNg - 1;
+        return { itemId: finalId, useSeeds: isRR ? 3 : 2, rarity: itemMaster[finalId]?.rarity || 0, nextNg };
+    }
+}
+
+function findBestBeamSearchResult(dp, totalTickets) {
+    let best = null;
+    const calculateScore = (state) => {
+        let score = 0;
+        for (let i = 0; i < state.layerCounts.length; i++) {
+            score += state.layerCounts[i] * Math.pow(1000, state.layerCounts.length - i + 1);
+        }
+        return score + (state.ubers * 10) + state.legends;
+    };
+    for (let i = totalTickets; i >= 0; i--) {
+        if (!dp[i]) continue;
+        for (let state of dp[i].values()) {
+            if (!best || calculateScore(state) > calculateScore(best)) {
+                best = state;
+            }
+        }
+        if (best) break;
+    }
+    return best;
+}
+
+function runGachaBeamSearchCorrected(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg, targetLayers = []) {
+    let dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
+    dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
+        nodeIdx: 1, lastId: initialLastRollId, currentNg: initialNg,
+        layerCounts: new Array(targetLayers.length).fill(0),
+        ubers: 0, legends: 0, path: [], rollCount: 1
+    });
+
+    const calculateScore = (state) => {
+        let score = 0;
+        for (let i = 0; i < state.layerCounts.length; i++) {
+            score += state.layerCounts[i] * Math.pow(1000, targetLayers.length - i + 1);
+        }
+        return score + (state.ubers * 10) + state.legends;
+    };
+
+    for (let t = 0; t < totalTickets; t++) {
+        if (!dp[t]) continue;
+        const states = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a)).slice(0, 200);
+
+        for (let state of states) {
+            // 単発ガチャ (Single Roll)
+            const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
+            if (resS) {
+                const newLayerCounts = [...state.layerCounts];
+                targetLayers.forEach((ids, idx) => { if (ids.includes(resS.itemId)) newLayerCounts[idx]++; });
+                const nextState = {
+                    nodeIdx: state.nodeIdx + resS.useSeeds, lastId: resS.itemId, currentNg: resS.nextNg,
+                    layerCounts: newLayerCounts, ubers: state.ubers + (resS.rarity === 3 ? 1 : 0),
+                    legends: state.legends + (resS.rarity === 4 ? 1 : 0),
+                    path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
+                    rollCount: state.rollCount + 1
+                };
+                const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}`;
+                if (t + 1 <= totalTickets && (!dp[t + 1].has(key) || calculateScore(dp[t + 1].get(key)) < calculateScore(nextState))) {
+                    dp[t + 1].set(key, nextState);
+                }
+            }
+
+            // 10連ガチャ (10-Roll)
+            if (t + 10 <= totalTickets) {
+                const startNode = Nodes[state.nodeIdx - 1];
+                if (startNode) {
+                    let curIdx = state.nodeIdx;
+                    let curLastId = state.lastId;
+                    let curNg = state.currentNg;
+                    let curRoll = state.rollCount;
+                    
+                    let items = [];
+                    let ubers = 0;
+                    let legends = 0;
+                    let addLayer = new Array(targetLayers.length).fill(0);
+                    let validCycle = true;
+                    
+                    let gRarityId = null;
+                    let gRollIndexInCycle = -1;
+
+                    if (!isNaN(curNg) && curNg !== 'none' && curNg > 0 && curNg <= curRoll + 9) {
+                        for (let i = 0; i < 10; i++) {
+                            if (((curRoll + i - curNg) % 10 === 0) && (curRoll + i >= curNg)) {
+                                gRollIndexInCycle = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (gRollIndexInCycle !== -1) {
+                        const gRarityNode = Nodes[curIdx - 1];
+                        if (!gRarityNode) {
+                            validCycle = false;
+                        } else {
+                            gRarityId = gRarityNode.rarityGId;
+                            curIdx++; // Consume seed for guaranteed rarity
+                        }
+                    }
+
+                    if (validCycle) {
+                        for (let j = 0; j < 10; j++) {
+                            const currentRollNumber = curRoll + j;
+                            if (j === gRollIndexInCycle) {
+                                // Guaranteed Slot
+                                const gSlotNode = Nodes[curIdx - 1];
+                                if (!gSlotNode) { validCycle = false; break; }
+                                
+                                const poolG = gacha.rarityItems[gRarityId] || [];
+                                const slotG = gSlotNode.seed1 % Math.max(1, poolG.length);
+                                const itemIdG = poolG[slotG];
+                                const rarityG = itemMaster[itemIdG]?.rarity || 0;
+
+                                items.push(getItemNameSafe(itemIdG));
+                                targetLayers.forEach((ids, idx) => { if (ids.includes(itemIdG)) addLayer[idx]++; });
+                                if (rarityG === 3) ubers++;
+                                if (rarityG === 4) legends++;
+
+                                curLastId = itemIdG;
+                                curIdx += 1;
+                                curNg = gacha.guaranteedCycle || 30;
+
+                            } else {
+                                // Normal Slot
+                                const node = Nodes[curIdx - 1];
+                                if (!node) { validCycle = false; break; }
+
+                                const isMatch = (node.itemId !== -1 && node.itemId === curLastId);
+                                const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
+                                
+                                let finalId = node.itemId;
+                                let useSeeds = 2;
+                                if (isRR) {
+                                    finalId = node.reRollItemId;
+                                    useSeeds = 3;
+                                }
+
+                                const finalRarity = itemMaster[finalId]?.rarity || 0;
+                                items.push(getItemNameSafe(finalId));
+                                targetLayers.forEach((ids, idx) => { if (ids.includes(finalId)) addLayer[idx]++; });
+                                if (finalRarity === 3) ubers++;
+                                if (finalRarity === 4) legends++;
+                                
+                                curLastId = finalId;
+                                curIdx += useSeeds;
+                                if (!isNaN(curNg) && curNg !== 'none') {
+                                   curNg = (curNg <= 1) ? (gacha.guaranteedCycle || 30) : curNg - 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if (validCycle) {
+                        const nextStateTen = {
+                            nodeIdx: curIdx,
+                            lastId: curLastId,
+                            currentNg: curNg,
+                            layerCounts: state.layerCounts.map((c, idx) => c + addLayer[idx]),
+                            ubers: state.ubers + ubers,
+                            legends: state.legends + legends,
+                            path: state.path.concat({ type: 'ten', items: items, addr: startNode.address }),
+                            rollCount: curRoll + 10
+                        };
+                        const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}`;
+                        if (!dp[t + 10].has(keyTen) || calculateScore(dp[t + 10].get(keyTen)) < calculateScore(nextStateTen)) {
+                            dp[t + 10].set(keyTen, nextStateTen);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return findBestBeamSearchResult(dp, totalTickets);
+}
