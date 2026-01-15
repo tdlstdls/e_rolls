@@ -49,7 +49,7 @@ function runSimulation() {
     const { gacha, initialLastRollId } = viewData;
     const initialNg = new URLSearchParams(window.location.search).get('ng') || 'none';
 
-    const result = runGachaBeamSearchCorrected(
+    const result = runGachaSearch(
         Nodes, initialLastRollId, params.tickets, gacha, 
         thresholds, initialNg, params.targetLayers
     );
