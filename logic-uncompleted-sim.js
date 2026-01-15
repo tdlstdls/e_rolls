@@ -1,265 +1,200 @@
 /**
  * 担当: 「未コンプ」ビュー用の10連ガチャシミュレーションおよび期待値計算ロジック
- * 依存関係: logic-common.js
+ * 依存関係: logic-common.js, utils.js
  */
+
+// =================================================================================
+// 1. 通常枠の計算パーツ
+// =================================================================================
 
 /**
- * 10連詳細（現在地からの1回分）を計算するロジック
+ * 通常枠（レアリティ判定、スロット、被り再抽選）の計算を行う
  */
-function calculateTenPullDetailedLogic(fullSeedArray, gacha, thresholds, ngVal, initialLastRollId, getAddressFunc) {
-    const isGuaranteedActive = !isNaN(ngVal);
-    const guaranteedCycle = gacha.guaranteedCycle || 30;
+function calculateNormalRollResult(fullSeedArray, currentIndex, thresholds, lastItemId) {
+    const sRarity = fullSeedArray[currentIndex];
+    const sSlot = fullSeedArray[currentIndex + 1];
     
-    let guaranteedStatus = 'none';
-    let currentNgVal = ngVal;
-    
-    // Featured 判定で実際に消費したシードの数をトラック
-    let featuredSeedPtr = 0; 
-    
-    if (isGuaranteedActive && currentNgVal > 0) {
-        if (currentNgVal <= 10) {
-            guaranteedStatus = `next guaranteed(${currentNgVal}) <= 10 → 9ロール抽選`;
-        } else {
-            guaranteedStatus = `next guaranteed(${currentNgVal}) >= 11 → 10ロール抽選`;
+    if (sRarity === undefined || sSlot === undefined) return null;
+
+    const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
+    const pool = gachaMaster[window.activeGachaId]?.rarityItems[rarityInfo.id] || [];
+    const poolSize = pool.length > 0 ? pool.length : 1;
+    const itemId = (pool[sSlot % poolSize] !== undefined) ? pool[sSlot % poolSize] : -1;
+    const itemName = getItemNameSafe(itemId);
+
+    let finalId = itemId;
+    let finalName = itemName;
+    let consumed = 2;
+    let isReroll = false;
+    let preRerollName = null;
+    let logStr = `S${currentIndex + 1}→${rarityInfo.name}, S${currentIndex + 2}→${itemName}`;
+
+    // レア(ID:1)の被り再抽選
+    if (rarityInfo.id === 1 && itemId !== -1 && itemId === lastItemId) {
+        const sReRoll = fullSeedArray[currentIndex + 2];
+        if (sReRoll !== undefined) {
+            const rePool = pool.filter(id => id !== itemId);
+            if (rePool.length > 0) {
+                isReroll = true;
+                preRerollName = itemName;
+                finalId = rePool[sReRoll % rePool.length];
+                finalName = getItemNameSafe(finalId);
+                logStr += ` [Dupe], S${currentIndex + 3}→${finalName}`;
+                consumed = 3;
+            }
         }
-    } else {
-        guaranteedStatus = 'Not Guaranteed/NG Invalid → 10ロール抽選';
     }
+    return { finalId, finalName, consumed, isReroll, preRerollName, logStr };
+}
 
-    const featuredLog = [];
-    const processLog = [];
-    const results = [];
-    let featuredCountInCycle = 0; 
+// =================================================================================
+// 2. 10連シミュレーション
+// =================================================================================
 
-    // 目玉判定用シード (S1～S10) の計算
+/**
+ * 10連スロット用シード(S1~S10)による目玉判定を事前に行う
+ */
+function getFeaturedSeedResults(fullSeedArray, gacha, ngVal, isGuaranteedActive) {
     const featuredResults = [];
-    for (let i = 1; i <= 10; i++) { 
-        const isGuaranteedRoll = isGuaranteedActive && i === currentNgVal && currentNgVal <= 10;
+    const featuredLog = [];
+    let featuredSeedPtr = 0;
 
+    for (let i = 1; i <= 10; i++) {
+        const isGuaranteedRoll = isGuaranteedActive && i === ngVal && ngVal <= 10;
         if (isGuaranteedRoll) {
-             featuredLog.push(`S${i} (Skipped): Guaranteed Roll (${currentNgVal})`);
-             continue;
+            featuredLog.push(`S${i} (Skipped): Guaranteed Roll (${ngVal})`);
+            continue;
         }
         
         const sVal = fullSeedArray[featuredSeedPtr];
-        if (sVal === undefined) {
-             console.error(`Seed is undefined at index ${featuredSeedPtr}.`);
-             break; 
-        }
+        if (sVal === undefined) break;
 
-        const mod = sVal % 10000;
-        const isFeatured = mod < gacha.featuredItemRate;
-        featuredResults.push({ index: i, isFeatured: isFeatured, seedIndex: featuredSeedPtr + 1 });
-        featuredLog.push(`S${featuredSeedPtr + 1} (${sVal}) % 10000 = ${mod} < ${gacha.featuredItemRate} → ${isFeatured} (Roll ${i}用)`);
+        const isFeatured = (sVal % 10000) < gacha.featuredItemRate;
+        featuredResults.push({ index: i, isFeatured, seedIndex: featuredSeedPtr + 1 });
+        featuredLog.push(`S${featuredSeedPtr + 1} (${sVal}) % 10000 = ${sVal % 10000} < ${gacha.featuredItemRate} → ${isFeatured}`);
         featuredSeedPtr++;
     }
+    return { featuredResults, featuredLog, featuredSeedPtr };
+}
 
-    let currentSeedIndex = featuredSeedPtr; 
+/**
+ * 10連ガチャ1回分の計算を行う
+ */
+function calculateTenPullDetailedLogic(fullSeedArray, gacha, thresholds, ngVal, initialLastRollId, getAddressFunc) {
+    const isGuaranteedActive = !isNaN(ngVal);
+    const { featuredResults, featuredLog, featuredSeedPtr } = getFeaturedSeedResults(fullSeedArray, gacha, ngVal, isGuaranteedActive);
+    
+    let currentSeedIndex = featuredSeedPtr;
     let lastItemId = initialLastRollId || -1;
-    const rollCount = 10;
-    let featuredIdxPtr = 0; 
+    let featuredCountInCycle = 0;
+    let featuredIdxPtr = 0;
+    const results = [];
+    const processLog = [];
 
-    for (let r = 1; r <= rollCount; r++) {
+    for (let r = 1; r <= 10; r++) {
         let label = `Roll${r}`;
-        
-        // 確定ロール判定
-        if (isGuaranteedActive && r === currentNgVal) {
+        if (isGuaranteedActive && r === ngVal) {
             label += `(G${r})`;
-            if (currentNgVal <= 10) { 
-                processLog.push(`${label} (Skipped): Guaranteed Roll`);
-            } else {
-                processLog.push(`${label}: Featured Item by guaranteed`); 
-            }
-            results.push({ label: label, name: '目玉(確定)', isGuaranteed: true, isFeatured: false, isReroll: false, preRerollName: null });
-            featuredCountInCycle++; 
-            continue;
+            processLog.push(ngVal <= 10 ? `${label} (Skipped): Guaranteed Roll` : `${label}: Featured Item by guaranteed`);
+            results.push({ label, name: '目玉(確定)', isGuaranteed: true, isFeatured: false, isReroll: false, preRerollName: null });
+            featuredCountInCycle++; continue;
         }
 
-        // 非確定ロール判定
-        const fRes = featuredResults[featuredIdxPtr];
-        if (!fRes) {
-             processLog.push(`${label}: **ERROR**: Featured check result missing.`);
-             break;
-        }
-        featuredIdxPtr++; 
-        
+        const fRes = featuredResults[featuredIdxPtr++];
+        if (!fRes) break;
+
         if (fRes.isFeatured) {
-            results.push({ label: label, name: '目玉', isGuaranteed: false, isFeatured: true, isReroll: false, preRerollName: null });
-             processLog.push(`${label}: Featured (by S${fRes.seedIndex})`);
-             lastItemId = -2;
-             featuredCountInCycle++; 
+            results.push({ label, name: '目玉', isGuaranteed: false, isFeatured: true, isReroll: false, preRerollName: null });
+            processLog.push(`${label}: Featured (by S${fRes.seedIndex})`);
+            lastItemId = -2; featuredCountInCycle++;
         } else {
-            // Continuation Seeds Consumption
-            const sRarity = fullSeedArray[currentSeedIndex];
-            const sSlot = fullSeedArray[currentSeedIndex+1];
-            
-            if (sRarity === undefined || sSlot === undefined) {
-                 processLog.push(`${label}: **ERROR**: Seed array ended unexpectedly.`);
-                 break; 
-            }
-
-            const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
-            const rId = rarityInfo.id;
-            const rName = rarityInfo.name;
-            let logStr = `${label}: S${currentSeedIndex+1}→${rName}`;
-            
-            const pool = gacha.rarityItems[rId] || [];
-            const poolSize = pool.length > 0 ? pool.length : 1;
-            const slot = sSlot % poolSize;
-            const itemId = (pool[slot] !== undefined) ? pool[slot] : -1;
-            const itemName = getItemNameSafe(itemId);
-            
-            logStr += `, S${currentSeedIndex+2}→${itemName}`;
-            
-            let finalId = itemId;
-            let finalName = itemName;
-            let consumed = 2;
-            let isReroll = false;
-            let preRerollName = null;
-
-            // Dupe Check
-            if (rId === 1 && itemId !== -1 && itemId === lastItemId) {
-                const sReRoll = fullSeedArray[currentSeedIndex+2];
-                if (sReRoll === undefined) break;
-                const rePool = pool.filter(id => id !== itemId);
-                const reDiv = rePool.length;
-                logStr += ` [Dupe]`;
-                if (reDiv > 0) {
-                    isReroll = true;
-                    preRerollName = itemName;
-                    const reSlot = sReRoll % reDiv;
-                    finalId = rePool[reSlot];
-                    finalName = getItemNameSafe(finalId);
-                    logStr += `, S${currentSeedIndex+3}→${finalName}`;
-                }
-                consumed = 3;
-            }
-
-            processLog.push(logStr);
-            results.push({ label: label, name: finalName, isGuaranteed: false, isFeatured: false, isReroll: isReroll, preRerollName: preRerollName });
-            currentSeedIndex += consumed;
-            lastItemId = finalId;
+            const roll = calculateNormalRollResult(fullSeedArray, currentSeedIndex, thresholds, lastItemId);
+            if (!roll) break;
+            processLog.push(`${label}: ${roll.logStr}`);
+            results.push({ label, name: roll.finalName, isGuaranteed: false, isFeatured: false, isReroll: roll.isReroll, preRerollName: roll.preRerollName });
+            currentSeedIndex += roll.consumed; lastItemId = roll.finalId;
         }
     }
 
-    const nextSeedVal = fullSeedArray[currentSeedIndex]; 
-    const nextIndex = currentSeedIndex + 1;
-    const nextAddress = (fullSeedArray.length > currentSeedIndex) ? getAddressFunc(nextIndex) : 'End';
-    const nextNgVal = isGuaranteedActive ? currentNgVal : NaN;
-    const seedsConsumedCorrectly = currentSeedIndex; 
-
     return {
-        guaranteedStatus, featuredLog, processLog, results, featuredCountInCycle,
-        transition: { consumedCount: seedsConsumedCorrectly, nextIndex: nextIndex, nextAddress: nextAddress, nextSeed: nextSeedVal, lastItemId: lastItemId, nextNgVal: nextNgVal }
+        guaranteedStatus: isGuaranteedActive && ngVal > 0 ? (ngVal <= 10 ? `next G(${ngVal}) <= 10` : `next G(${ngVal}) >= 11`) : 'none',
+        featuredLog, processLog, results, featuredCountInCycle,
+        transition: { consumedCount: currentSeedIndex, nextIndex: currentSeedIndex + 1, nextAddress: getAddressFunc(currentSeedIndex + 1), nextSeed: fullSeedArray[currentSeedIndex], lastItemId, nextNgVal: ngVal }
     };
 }
+
+// =================================================================================
+// 3. 複数サイクル・期待値計算
+// =================================================================================
 
 /**
  * nサイクル分の10連計算を実行
  */
 function calculateTenPullsOverCycles(initialFullSeedArray, gacha, thresholds, initialNgVal, initialLastRollId, nCycles = 10) {
     const getAddress = (n) => getAddressStringGeneric(n, 3);
-    const guaranteedCycle = gacha.guaranteedCycle || 30; // 確定サイクルの値を取得
+    const guaranteedCycle = gacha.guaranteedCycle || 30;
     let currentSeedArray = [...initialFullSeedArray];
     let currentLastRollId = initialLastRollId;
     let currentNgVal = initialNgVal;
-    
     const cycleResults = [];
-    const maxSeedsInTenPull = 40; 
 
     for (let c = 1; c <= nCycles; c++) {
         if (currentSeedArray.length < 1) break;
-        const tenPullSeedSlice = currentSeedArray.slice(0, maxSeedsInTenPull); 
-        const cycleResult = calculateTenPullDetailedLogic(tenPullSeedSlice, gacha, thresholds, currentNgVal, currentLastRollId, getAddress);
-        
-        cycleResults.push({ cycle: c, ...cycleResult, startNgVal: currentNgVal, startLastRollId: currentLastRollId });
+        const res = calculateTenPullDetailedLogic(currentSeedArray.slice(0, 40), gacha, thresholds, currentNgVal, currentLastRollId, getAddress);
+        cycleResults.push({ cycle: c, ...res, startNgVal: currentNgVal, startLastRollId: currentLastRollId });
 
-        const consumedCount = cycleResult.transition.consumedCount;
-        currentSeedArray = currentSeedArray.slice(consumedCount);
-        currentLastRollId = cycleResult.transition.lastItemId;
-        let nextNgValFromLogic = cycleResult.transition.nextNgVal; // logicから返されたNG値
-
-        // 10連が終わった時点で10ロール分マイナスする
-        if (!isNaN(nextNgValFromLogic)) {
-                currentNgVal = nextNgValFromLogic - 10;
-            // 確定サイクルをまたいだ場合の処理
-            if (currentNgVal <= 0) {
-                 currentNgVal = guaranteedCycle + currentNgVal;
-            }
-        } else {
-            // 確定システムが無効な場合はそのまま NaN を維持
-            currentNgVal = nextNgValFromLogic;
+        currentSeedArray = currentSeedArray.slice(res.transition.consumedCount);
+        currentLastRollId = res.transition.lastItemId;
+        if (!isNaN(currentNgVal)) {
+            currentNgVal = res.transition.nextNgVal - 10;
+            if (currentNgVal <= 0) currentNgVal = guaranteedCycle + currentNgVal;
         }
     }
     return cycleResults;
 }
 
 /**
- * 単発Nロール後の10連目玉獲得数期待値の計算ロジック
+ * 単発Nロール後の内部状態（シード位置、NG値、直前ID）を算出
+ */
+function simulateSingleRollsAndGetState(n, seedArray, initialNg, initialLastRoll, gacha, thresholds) {
+    const guaranteedCycle = gacha.guaranteedCycle || 30;
+    let currentSeedIndex = 0;
+    let currentNg = !isNaN(initialNg) && initialNg > 0 ? initialNg : guaranteedCycle;
+    let lastItemId = initialLastRoll || -1;
+
+    for (let r = 1; r <= n; r++) {
+        if (currentSeedIndex >= seedArray.length) break;
+        const isFeatured = (seedArray[currentSeedIndex] % 10000) < gacha.featuredItemRate;
+        const isGuaranteedRoll = (currentNg === 1);
+
+        if (isGuaranteedRoll || isFeatured) {
+            currentSeedIndex += 1;
+            currentNg = isGuaranteedRoll ? guaranteedCycle : (currentNg - 1 || guaranteedCycle);
+            lastItemId = -2;
+        } else {
+            const roll = calculateNormalRollResult(seedArray, currentSeedIndex, thresholds, lastItemId);
+            if (!roll) break;
+            currentSeedIndex += roll.consumed;
+            currentNg = (currentNg - 1 <= 0) ? guaranteedCycle : currentNg - 1;
+            lastItemId = roll.finalId;
+        }
+    }
+    return { nextSeedIndex: currentSeedIndex, nextNg: currentNg, nextLastRollId: lastItemId };
+}
+
+/**
+ * 期待値の計算
  */
 function calculateExpectedFeaturedCounts(initialFullSeedArray, gacha, thresholds, nRollsArray, initialNgVal, initialLastRollId) {
     const results = {};
-    const guaranteedCycle = gacha.guaranteedCycle || 30;
-    const tenPullSimulationLength = 40; 
-    
-    // Nロール後の状態をシミュレーション
-    const simulateSingleRollsAndGetState = (n, seedArray, initialNg, initialLastRoll) => {
-        let currentSeedIndex = 0;
-        let currentNg = !isNaN(initialNg) && initialNg > 0 ? initialNg : guaranteedCycle;
-        let lastItemId = initialLastRoll || -1;
-        
-        for (let r = 1; r <= n; r++) {
-            if (currentSeedIndex >= seedArray.length) break;
-            const isFeatured = (seedArray[currentSeedIndex] % 10000) < gacha.featuredItemRate;
-            const isGuaranteedRoll = (currentNg === 1);
-            let usedSeeds = 0;
-
-            if (isGuaranteedRoll) {
-                usedSeeds = 1; currentNg = guaranteedCycle; lastItemId = -2;
-            } else if (isFeatured) {
-                usedSeeds = 1; currentNg = currentNg - 1;
-                if (currentNg <= 0) currentNg = guaranteedCycle;
-                lastItemId = -2;
-            } else {
-                const sRarity = seedArray[currentSeedIndex+1];
-                const sSlot = seedArray[currentSeedIndex+2];
-                if (sRarity === undefined || sSlot === undefined) { usedSeeds = 3; break; }
-                const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
-                const rId = rarityInfo.id;
-                const pool = gacha.rarityItems[rId] || [];
-                const itemId = (pool[sSlot % (pool.length||1)] !== undefined) ? pool[sSlot % (pool.length||1)] : -1;
-                usedSeeds = 3;
-                let finalId = itemId;
-
-                if (rId === 1 && itemId !== -1 && itemId === lastItemId) {
-                    const sReRoll = seedArray[currentSeedIndex+3];
-                    if (sReRoll !== undefined) {
-                        const rePool = pool.filter(id => id !== itemId);
-                        if (rePool.length > 0) {
-                            finalId = rePool[sReRoll % rePool.length];
-                            usedSeeds = 4;
-                        }
-                    }
-                }
-                currentNg = currentNg - 1;
-                if (currentNg <= 0) currentNg = guaranteedCycle;
-                lastItemId = finalId;
-            }
-            currentSeedIndex += usedSeeds;
-        }
-        return { nextSeedIndex: currentSeedIndex, nextNg: currentNg, nextLastRollId: lastItemId };
-    };
-
     for (const n of nRollsArray) {
         if (n < 0) continue;
-        const { nextSeedIndex, nextNg, nextLastRollId } = simulateSingleRollsAndGetState(n, initialFullSeedArray, initialNgVal, initialLastRollId);
-        const tenPullSeedArray = initialFullSeedArray.slice(nextSeedIndex, nextSeedIndex + tenPullSimulationLength);
-
-        if (tenPullSeedArray.length < 9) {
-             results[n] = 0; continue;
-        }
-        const tenPullResult = calculateTenPullDetailedLogic(tenPullSeedArray, gacha, thresholds, nextNg, nextLastRollId, (addr) => `S${nextSeedIndex + addr}`);
-        results[n] = tenPullResult.featuredCountInCycle;
+        const state = simulateSingleRollsAndGetState(n, initialFullSeedArray, initialNgVal, initialLastRollId, gacha, thresholds);
+        const tenPullSeed = initialFullSeedArray.slice(state.nextSeedIndex, state.nextSeedIndex + 40);
+        if (tenPullSeed.length < 9) { results[n] = 0; continue; }
+        
+        const sim = calculateTenPullDetailedLogic(tenPullSeed, gacha, thresholds, state.nextNg, state.nextLastRollId, (addr) => `S${state.nextSeedIndex + addr}`);
+        results[n] = sim.featuredCountInCycle;
     }
     return results;
 }

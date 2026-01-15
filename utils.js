@@ -112,27 +112,36 @@ function getFormattedItemComparison(nodeItemName, nodeItemId, nodeRarityId, prev
 /**
  * アイテムリンク生成ヘルパー
  */
+/**
+ * アイテムリンク生成ヘルパー (修正版)
+ * 引数がズレていても（第1引数がSEED値でも）動作するように調整
+ */
 function generateItemLink(baseParams, newSeed, newItemId, ngVal, rollNumberInSequence, isCompleted, fsVal) {
     const gId = window.activeGachaId;
     const paramsForQuery = {};
     
-    // baseParams (URLSearchParams) から現在の値をコピー
-    for (const [key, value] of baseParams.entries()) {
+    // 第1引数が URLSearchParams でない場合の互換性処理
+    let effectiveParams = baseParams;
+    let s = newSeed, id = newItemId, ng = ngVal, fs = fsVal;
+
+    if (!(baseParams instanceof URLSearchParams)) {
+        effectiveParams = new URLSearchParams(window.location.search);
+        s = arguments[0]; // 第1引数をSEEDとして扱う
+        id = arguments[1]; // 第2引数をアイテムIDとして扱う
+        ng = arguments[2]; // 第3引数をNG値として扱う
+        fs = arguments[5]; // 第6引数を在庫数として扱う
+    }
+
+    // ベースとなるパラメータをコピー
+    for (const [key, value] of effectiveParams.entries()) {
         paramsForQuery[key] = value;
     }
     
     if (!paramsForQuery.gacha) paramsForQuery.gacha = gId;
-
-    paramsForQuery.seed = newSeed;
-    if (newItemId !== undefined) paramsForQuery.lr = newItemId;
-    
-    if (fsVal !== undefined && fsVal !== null && !isNaN(fsVal)) {
-        paramsForQuery.fs = fsVal;
-    }
-
-    if (ngVal !== undefined && ngVal !== null) {
-        paramsForQuery.ng = ngVal.toString();
-    }
+    paramsForQuery.seed = s;
+    if (id !== undefined) paramsForQuery.lr = id;
+    if (fs !== undefined && fs !== null && !isNaN(fs)) paramsForQuery.fs = fs;
+    if (ng !== undefined && ng !== null) paramsForQuery.ng = ng.toString();
     
     return generateUrlQuery(paramsForQuery);
 }

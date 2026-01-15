@@ -67,6 +67,11 @@ FILE: index.html
        </div>
 
         <div id="sim-ui-container" style="display: none; margin-bottom: 15px;"></div>
+
+        <div id="details-controls" style="display:none; margin-top: 10px; gap: 10px; align-items: center;">
+            <button id="toggleDetailsBtn">計算過程を表示</button>
+        </div>
+
         <div id="calculation-details" style="display:none;"></div>
     </div>
 </div>
@@ -94,8 +99,12 @@ FILE: index.html
 <script src="view-completed.js"></script>
 <script src="view-uncompleted-details.js"></script>
 <script src="view-uncompleted-table.js"></script>
-<script src="view-uncompleted.js"></script>
-<script src="view-simulation.js"></script>
+<script src="view-uncompleted-main.js"></script>
+<script src="view-uncompleted-ui.js"></script>
+<script src="view-simulation-ui.js"></script>
+<script src="view-simulation-layer.js"></script>
+<script src="view-simulation-result.js"></script>
+<script src="view-simulation-main.js"></script>
 <script src="main.js"></script>
 
 </body>
@@ -134,15 +143,16 @@ function getRarityFromRoll(roll, thresholds) {
 }
 
 /**
- * アドレス文字列 (1A, 1B, 2A...) を生成する
+ * アドレス文字列 (A1, B1, A2...) を生成する
  * cols: 列数 (completed=2, uncompleted=3)
+ * 修正: 番地表示を [行][列] から [列][行] (例: B15) に変更
  */
 function getAddressStringGeneric(n, cols) {
     if (n <= 0) return '';
     const zeroBasedIndex = n - 1;
     const col_char = String.fromCharCode('A'.charCodeAt(0) + (zeroBasedIndex % cols));
     const row_num = Math.floor(zeroBasedIndex / cols) + 1;
-    return `${row_num}${col_char}`;
+    return `${col_char}${row_num}`;
 }
 
 /**
@@ -161,13 +171,15 @@ function determineHighlightClass(info) {
     let cls = '';
     const isSingle10 = info.single && (info.singleRoll % 10 === 0);
     const isTen10 = info.ten && (info.tenRoll % 10 === 0);
-    
     if (info.single && info.ten) {
-        cls = (isSingle10 || isTen10) ? 'highlight-roll-overlap-dark' : 'highlight-roll-overlap';
+        cls = (isSingle10 || isTen10) ?
+            'highlight-roll-overlap-dark' : 'highlight-roll-overlap';
     } else if (info.single) {
-        cls = isSingle10 ? 'highlight-roll-dark' : 'highlight-roll';
+        cls = isSingle10 ?
+            'highlight-roll-dark' : 'highlight-roll';
     } else if (info.ten) {
-        cls = isTen10 ? 'highlight-roll-10pull-dark' : 'highlight-roll-10pull';
+        cls = isTen10 ?
+            'highlight-roll-10pull-dark' : 'highlight-roll-10pull';
     }
     return cls;
 }
@@ -189,7 +201,8 @@ function initializeNodes(SEED_LIST, maxNodeIndex, gacha, thresholds) {
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const uFlag = gacha.uberGuaranteedFlag;
     const lFlag = gacha.legendGuaranteedFlag;
-    const uRate = uFlag ? (gacha.rarityRates['3'] || 500) : 0;
+    const uRate = uFlag ?
+        (gacha.rarityRates['3'] || 500) : 0;
     const lRate = lFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDivisor = uRate + lRate;
 
@@ -235,11 +248,15 @@ function initializeNodes(SEED_LIST, maxNodeIndex, gacha, thresholds) {
 
 /**
  * 基本的なレア被り判定
+ * 1行目(index 0, 1)は initialLastRollId と比較を行う
  */
 function calculateRerolls(Nodes, initialLastRollId, gacha) {
     Nodes.forEach((node, i) => {
+        // prevNode2は2つ前のノード。存在しない(1行目のA, B列など)場合は initialLastRollId を参照
         const prevNode2 = (i >= 2) ? Nodes[i - 2] : null;
         const prevId2 = prevNode2 ? prevNode2.itemId : (initialLastRollId || -1);
+        
+        // レア(rarityId=1)かつアイテムIDが直前と一致する場合に再抽選フラグを立てる
         node.reRollFlag = (node.rarityId === 1 && node.poolSize > 1 && node.itemId === prevId2);
         
         const prevNode3 = (i >= 3) ? Nodes[i - 3] : null;
@@ -272,7 +289,6 @@ function calculateSingleRollRoute(Nodes, tableRows, initialNg, initialLastRollId
         const isG = (sNgTracker === 1);
         
         let block = `<strong>Roll ${sRoll}${isG ? '[Guar]' : ''}</strong><br>`;
-        
         if (isG) {
             block += `確定枠: Seed[${sIdx}] ${node.seed1} % ${node.gDivisor} → ${node.rarityGName}<br>`;
             block += `アイテム: ${node.itemGName}<br>`;
@@ -303,7 +319,6 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
     const uRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 500) : 0;
     const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDiv = uRate + lRate;
-    
     let tIdx = 1, tRoll = 1, tNgTracker = parseInt(initialNg, 10), tLastId = initialLastRollId;
 
     while (tIdx <= Nodes.length && tRoll <= tableRows) {
@@ -320,7 +335,8 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
         if (gIndex !== -1 && gDiv > 0) {
             const gRoll = cycleHeadSeed % gDiv;
             gRarityId = (gRoll < uRate) ? '3' : '4';
-            tIdx++; // 確定枠レアリティ判定に1消費
+            tIdx++;
+            // 確定枠レアリティ判定に1消費
         }
 
         for (let j = 0; j < 10; j++) {
@@ -332,7 +348,8 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
                 const itemIdG = poolG[node.seed1 % Math.max(1, poolG.length)];
                 cycleBlock += `R${tRoll}[G]: ${getItemNameSafe(itemIdG)}<br>`;
                 tLastId = itemIdG;
-                tIdx += 1; // 確定枠スロットに1消費
+                tIdx += 1;
+                // 確定枠スロットに1消費
                 tNgTracker = gCycle;
             } else {
                 const isMatch = (node.itemId === tLastId);
@@ -493,7 +510,6 @@ FILE: logic-completed-popup.js
 function generateGachaInfoHeaderHtml(thresholds, gacha, isGuaranteedColumn) {
     const names = ["ノーマル", "レア", "激レア", "超激レア", "伝説レア"];
     let html = '<h4>ガチャ情報</h4><p style="font-size: 0.8rem; background: #eee; padding: 5px;">';
-    
     if (isGuaranteedColumn && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
         let p = [];
         if (gacha.uberGuaranteedFlag) p.push(names[3]);
@@ -507,10 +523,13 @@ function generateGachaInfoHeaderHtml(thresholds, gacha, isGuaranteedColumn) {
     return html + '</p>';
 }
 
+/**
+ * SEED情報表示の生成
+ * 修正: 直前SEEDを削除し、ラベルを「最終SEED」に変更
+ */
 function generateSeedInfoHtml(node, isGuaranteedColumn, linkSeeds) {
     let html = `<h3>${node.address}${isGuaranteedColumn ? 'G' : ''} の詳細計算</h3><h4>SEED情報</h4><ul>`;
     html += `<li>対象SEED (S1): Index[${node.index}] : ${node.seed1}</li>`;
-    html += `<li>直前SEED: Index[${node.index - 1}] : ${node.prevSeed1}</li>`;
     
     const cmp = (calc, link, label, idx) => {
         if (!link) return `<li>${label}: 該当なし</li>`;
@@ -520,11 +539,11 @@ function generateSeedInfoHtml(node, isGuaranteedColumn, linkSeeds) {
     };
 
     if (isGuaranteedColumn) {
-        html += cmp(node.seed2, linkSeeds.avoid, "次SEED(通常)", node.index + 1);
-        html += cmp(node.seed3, linkSeeds.reroll, "次SEED(再抽選)", node.index + 2);
+        html += cmp(node.seed2, linkSeeds.avoid, "最終SEED(通常)", node.index + 1);
+        html += cmp(node.seed3, linkSeeds.reroll, "最終SEED(再抽選)", node.index + 2);
     } else {
-        html += cmp(node.seed2, linkSeeds.normal, "次SEED(通常)", node.index + 1);
-        html += cmp(node.seed3, linkSeeds.reroll, "次SEED(再抽選)", node.index + 2);
+        html += cmp(node.seed2, linkSeeds.normal, "最終SEED(通常)", node.index + 1);
+        html += cmp(node.seed3, linkSeeds.reroll, "最終SEED(再抽選)", node.index + 2);
     }
     return html + '</ul>';
 }
@@ -535,10 +554,10 @@ function generateNodeCalculationDetailsHtml(node, gacha, thresholds, initialLast
     
     html += generateGachaInfoHeaderHtml(thresholds, gacha, isGuar);
     html += generateSeedInfoHtml(node, isGuar, linkSeeds);
-
     if (isGuar) {
         // AG/BG列（確定枠）の静的計算
-        const uRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 500) : 0;
+        const uRate = gacha.uberGuaranteedFlag ?
+            (gacha.rarityRates['3'] || 500) : 0;
         const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
         const gDiv = uRate + lRate;
 
@@ -571,7 +590,8 @@ function generateNodeCalculationDetailsHtml(node, gacha, thresholds, initialLast
         html += `<p>Rarity: Seed[${node.index}] ${node.seed1} % 10000 = ${node.roll1} → ${names[node.rarityId]}</p>`;
         html += `<p>Slot: Seed[${node.index+1}] ${node.seed2} % ${node.poolSize} = ${node.slot} → ${node.itemName}</p>`;
 
-        const prevN2 = (node.index >= 3) ? Nodes[node.index - 3] : null;
+        const prevN2 = (node.index >= 3) ?
+            Nodes[node.index - 3] : null;
         const prevId2 = prevN2 ? prevN2.itemId : (initialLastRollId || -1);
         const match = (node.itemId !== -1 && node.itemId === prevId2);
         
@@ -581,7 +601,6 @@ function generateNodeCalculationDetailsHtml(node, gacha, thresholds, initialLast
         html += `一致判定: <b>${match ? '一致' : '不一致'}</b><br>`;
         html += `再抽選実行: <b>${node.reRollFlag ? '実行' : 'なし'}</b>`;
         html += `</div>`;
-
         if (node.reRollFlag || node.reRerollFlag) {
             html += '<h4>再抽選詳細</h4>';
             html += `<p>Slot: Seed[${node.index+2}] ${node.seed3} % ${node.poolSize-1} = ${node.reRollSlot} → ${node.reRollItemName}</p>`;
@@ -597,206 +616,293 @@ FILE: logic-completed-search.js
 // 最適ルート探索（ビームサーチ）
 // =================================================================================
 
-function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes, nodeInit = null) {
+/**
+ * 単発ガチャを1回シミュレートする
+ */
+function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     const node = Nodes[startIdx - 1];
     if (!node) return null;
 
     const gCycle = gacha.guaranteedCycle || 30;
-    const isGuar = !isNaN(currentNg) && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (rollNum >= currentNg) && ((rollNum - currentNg) % 10 === 0);
+    // isGuar: あと1回で確定枠の時
+    const isGuar = !isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (currentNg <= 1);
     
-    if (isGuar && nodeInit) { // 10連内の確定
-        const poolG = gacha.rarityItems[nodeInit.rarityGId] || [];
-        const slotG = node.seed1 % Math.max(1, poolG.length);
-        const itemIdG = poolG[slotG];
-        return { itemId: itemIdG, useSeeds: 1, rarity: itemMaster[itemIdG]?.rarity || 0, nextNg: gCycle };
-    } else if (isGuar) { // 単発の確定
-        return { itemId: node.itemGId, useSeeds: 2, rarity: itemMaster[node.itemGId]?.rarity || 0, nextNg: gCycle };
-    } else { // 通常
+    if (isGuar) {
+        // 確定枠を消費する
+        return { items: [{itemId: node.itemGId, rarity: itemMaster[node.itemGId]?.rarity || 0}], useSeeds: 2, nextLastId: node.itemGId, nextNg: gCycle };
+    } else {
+        // 通常ロール
         const isMatch = (node.itemId !== -1 && node.itemId === lastId);
+        // レア被り再抽選判定
         const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
         let finalId = node.itemId;
-        if (isRR) {
-            const pool = gacha.rarityItems[node.rarityId] || [];
-            const filtered = pool.filter(id => id !== node.itemId);
-            if (filtered.length > 0) {
-                finalId = filtered[node.seed3 % Math.max(1, filtered.length)];
-            }
+        if (isRR && node.reRollItemId !== undefined) {
+            finalId = node.reRollItemId;
         }
-        const nextNg = (currentNg <= 1) ? gCycle : currentNg - 1;
-        return { itemId: finalId, useSeeds: isRR ? 3 : 2, rarity: itemMaster[finalId]?.rarity || 0, nextNg };
+        const useSeeds = isRR ? 3 : 2;
+        // 確定枠ではないので、カウンターを1減らす
+        const nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 1);
+        return { items: [{itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0}], useSeeds, nextLastId: finalId, nextNg };
     }
 }
 
-function findBestBeamSearchResult(dp, totalTickets) {
-    let best = null;
-    const calculateScore = (state) => {
-        let score = 0;
-        for (let i = 0; i < state.layerCounts.length; i++) {
-            score += state.layerCounts[i] * Math.pow(1000, state.layerCounts.length - i + 1);
-        }
-        return score + (state.ubers * 10) + state.legends;
-    };
-    for (let i = totalTickets; i >= 0; i--) {
-        if (!dp[i]) continue;
-        for (let state of dp[i].values()) {
-            if (!best || calculateScore(state) > calculateScore(best)) {
-                best = state;
-            }
-        }
-        if (best) break;
+
+/**
+ * 10連ガチャを1回シミュレートする
+ * ユーザー指定の特殊なSeed消費ロジックを実装
+ */
+function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
+    const gCycle = gacha.guaranteedCycle || 30;
+
+    // 1. 確定枠がこの10連に含まれるか、そのインデックス(0-9)を特定
+    let guaranteedRollIndex = -1;
+    // `currentNg` が 1-10 の間なら、この10連に確定枠が含まれる
+    if (!isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && currentNg <= 10 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
+        guaranteedRollIndex = currentNg - 1;
     }
-    return best;
+
+    // 2. 確定枠の「レアリティ」を最初のSeedから決定
+    let guaranteedRarityId = null;
+    let raritySeedConsumed = 0;
+    if (guaranteedRollIndex !== -1) {
+        const rarityNode = Nodes[startIdx - 1];
+        if (!rarityNode) return null; // 探索不能
+        guaranteedRarityId = rarityNode.rarityGId;
+        raritySeedConsumed = 1; // レアリティ判定で1消費
+    }
+
+    // 3. 各ロールで消費するSeed数と開始インデックスを事前計算
+    const rollInfos = [];
+    let currentSeedIdx = startIdx + raritySeedConsumed;
+    let tempLastId = lastId;
+
+    // まず通常ロール9回分(または10回分)のSeed消費を計算
+    for (let i = 0; i < 10; i++) {
+        if (i === guaranteedRollIndex) {
+            rollInfos.push(null); // 確定枠は後で計算
+            continue;
+        }
+        const node = Nodes[currentSeedIdx - 1];
+        if (!node) return null;
+        
+        const isMatch = (node.itemId !== -1 && node.itemId === tempLastId);
+        const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
+        const useSeeds = isRR ? 3 : 2;
+
+        let finalId = node.itemId;
+        if (isRR && node.reRollItemId !== undefined) {
+            finalId = node.reRollItemId;
+        }
+        
+        rollInfos.push({ type: 'normal', seed: currentSeedIdx, use: useSeeds, itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0 });
+        currentSeedIdx += useSeeds;
+        tempLastId = finalId;
+    }
+
+    // 4. 最後に確定枠の「スロット」用のSeedを割り当てる
+    if (guaranteedRollIndex !== -1) {
+        const slotNode = Nodes[currentSeedIdx - 1];
+        if (!slotNode) return null;
+        
+        const poolG = gacha.rarityItems[guaranteedRarityId] || [];
+        const slotG = slotNode.seed1 % Math.max(1, poolG.length);
+        const itemIdG = poolG[slotG];
+
+        rollInfos[guaranteedRollIndex] = { type: 'guaranteed', seed: currentSeedIdx, use: 1, itemId: itemIdG, rarity: itemMaster[itemIdG]?.rarity || 0 };
+        currentSeedIdx += 1;
+    }
+
+    // 5. 結果を組み立て
+    const items = [];
+    let nextLastId = lastId;
+    
+    for (let i = 0; i < 10; i++) {
+        const roll = rollInfos[i];
+        items.push({ itemId: roll.itemId, rarity: roll.rarity });
+        nextLastId = roll.itemId;
+    }
+    
+    // 10連後の最終的な nextNg を計算
+    let nextNg;
+    if (guaranteedRollIndex !== -1) {
+        // 確定枠を消費したので、gCycleにリセットされる
+        nextNg = gCycle;
+    } else {
+        // 確定枠を消費していないので、10回分カウンターを減らす
+        nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 10);
+    }
+
+    const totalSeedsConsumed = currentSeedIdx - startIdx;
+    return { items, useSeeds: totalSeedsConsumed, nextLastId, nextNg };
 }
 
-function runGachaBeamSearchCorrected(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg, targetLayers = []) {
-    let dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
-    dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
-        nodeIdx: 1, lastId: initialLastRollId, currentNg: initialNg,
-        layerCounts: new Array(targetLayers.length).fill(0),
-        ubers: 0, legends: 0, path: [], rollCount: 1
+
+/**
+ * 探索の最終結果から最良のものを選択する
+ * totalTicketsを使い切った状態から優先的に探す
+ */
+function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
+    // 指定されたチケット数を使い切った状態から逆順に探す
+    for (let t = totalTickets; t >= 1; t--) {
+        const statesInTier = dp[t];
+        if (!statesInTier || statesInTier.size === 0) {
+            continue; // このチケット数の状態がなければ次へ
+        }
+
+        // このチケット数で有効なルートが見つかったので、この中からベストを探して返す
+        let bestStateInTier = null;
+        let bestScoreInTier = -1;
+
+        for (const state of statesInTier.values()) {
+            const score = calculateScore(state);
+            if (score > bestScoreInTier) {
+                bestScoreInTier = score;
+                bestStateInTier = state;
+            }
+        }
+        return bestStateInTier;
+    }
+    return null; // 有効なルートが一つも見つからなかった場合
+}
+
+
+function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg, targetLayers = []) {
+    // 渡された targetLayers が実際に有効なターゲットを含んでいるかチェック
+    const hasValidLayers = targetLayers && targetLayers.some(layer => Array.isArray(layer) && layer.length > 0);
+    const effectiveLayers = hasValidLayers ? targetLayers : [];
+
+    const BEAM_WIDTH = 2000; // ビーム幅
+
+    // dp[t] はチケットを t 枚消費した時点での状態を保持するMap
+    const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
+
+    // 初期状態 (チケット0枚)
+    const initialLayerCounts = new Array(effectiveLayers.length).fill(0);
+    dp[0].set(`1_${initialLastRollId}_${initialNg}_${initialLayerCounts.join('-')}`, {
+        nodeIdx: 1,
+        lastId: initialLastRollId,
+        currentNg: initialNg,
+        layerCounts: initialLayerCounts,
+        ubers: 0,
+        legends: 0,
+        path: [],
+        rollCount: 1,
+        tickets: 0
     });
 
+    /**
+     * 状態を評価するスコア関数
+     * @param {object} state 状態
+     * @returns {number} スコア
+     */
     const calculateScore = (state) => {
         let score = 0;
-        for (let i = 0; i < state.layerCounts.length; i++) {
-            score += state.layerCounts[i] * Math.pow(1000, targetLayers.length - i + 1);
+        // ターゲットレイヤーのスコアを最優先
+        if (hasValidLayers) {
+            for (let i = 0; i < state.layerCounts.length; i++) {
+                // 第1優先を100,000点、以降の優先度は1/10ずつ価値を落とす
+                score += state.layerCounts[i] * (100000 / Math.pow(10, i));
+            }
         }
-        return score + (state.ubers * 10) + state.legends;
+        // 副産物としての超激レア・伝説レアのスコアは相対的に低くする
+        score += state.ubers * 1;
+        score += state.legends * 10;
+
+        return score;
     };
 
     for (let t = 0; t < totalTickets; t++) {
-        if (!dp[t]) continue;
-        const states = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a)).slice(0, 200);
+        if (!dp[t] || dp[t].size === 0) continue;
 
-        for (let state of states) {
-            // 単発ガチャ (Single Roll)
-            const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
-            if (resS) {
-                const newLayerCounts = [...state.layerCounts];
-                targetLayers.forEach((ids, idx) => { if (ids.includes(resS.itemId)) newLayerCounts[idx]++; });
-                const nextState = {
-                    nodeIdx: state.nodeIdx + resS.useSeeds, lastId: resS.itemId, currentNg: resS.nextNg,
-                    layerCounts: newLayerCounts, ubers: state.ubers + (resS.rarity === 3 ? 1 : 0),
-                    legends: state.legends + (resS.rarity === 4 ? 1 : 0),
-                    path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
-                    rollCount: state.rollCount + 1
-                };
-                const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}`;
-                if (t + 1 <= totalTickets && (!dp[t + 1].has(key) || calculateScore(dp[t + 1].get(key)) < calculateScore(nextState))) {
-                    dp[t + 1].set(key, nextState);
+        // ビームサーチによる絞り込み: スコア上位 `BEAM_WIDTH` 件のみを保持する
+        if (dp[t].size > BEAM_WIDTH) {
+            const sortedStates = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a));
+            const newDp = new Map();
+            for (let i = 0; i < Math.min(sortedStates.length, BEAM_WIDTH); i++) {
+                const state = sortedStates[i];
+                const key = `${state.nodeIdx}_${state.lastId}_${state.currentNg}_${state.layerCounts.join('-')}`;
+                newDp.set(key, state);
+            }
+            dp[t] = newDp;
+        }
+
+        const states = Array.from(dp[t].values());
+
+        for (const state of states) {
+            // --- 単発ガチャ (Single Roll) ---
+            if (t + 1 <= totalTickets) {
+                const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
+                if (resS) {
+                    const newLayerCounts = [...state.layerCounts];
+                    // 有効なターゲットがある場合のみカウント
+                    if (hasValidLayers) {
+                        const item = resS.items[0];
+                        effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) newLayerCounts[idx]++; });
+                    }
+                    
+                    const nextState = {
+                        nodeIdx: state.nodeIdx + resS.useSeeds,
+                        lastId: resS.nextLastId,
+                        currentNg: resS.nextNg,
+                        layerCounts: newLayerCounts,
+                        ubers: state.ubers + (resS.items[0].rarity === 3 ? 1 : 0),
+                        legends: state.legends + (resS.items[0].rarity === 4 ? 1 : 0),
+                        path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.items[0].itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
+                        rollCount: state.rollCount + 1,
+                        tickets: t + 1
+                    };
+                    
+                    const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}_${nextState.layerCounts.join('-')}`;
+                    const existing = dp[t + 1].get(key);
+                    if (!existing || calculateScore(existing) < calculateScore(nextState)) {
+                        dp[t + 1].set(key, nextState);
+                    }
                 }
             }
 
-            // 10連ガチャ (10-Roll)
+            // --- 10連ガチャ (10-Roll) ---
             if (t + 10 <= totalTickets) {
-                const startNode = Nodes[state.nodeIdx - 1];
-                if (startNode) {
-                    let curIdx = state.nodeIdx;
-                    let curLastId = state.lastId;
-                    let curNg = state.currentNg;
-                    let curRoll = state.rollCount;
-                    
-                    let items = [];
+                const resTen = simulateTenRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
+                if (resTen) {
+                    const addLayer = new Array(effectiveLayers.length).fill(0);
                     let ubers = 0;
                     let legends = 0;
-                    let addLayer = new Array(targetLayers.length).fill(0);
-                    let validCycle = true;
+                    let itemNames = [];
                     
-                    let gRarityId = null;
-                    let gRollIndexInCycle = -1;
-
-                    if (!isNaN(curNg) && curNg !== 'none' && curNg > 0 && curNg <= curRoll + 9) {
-                        for (let i = 0; i < 10; i++) {
-                            if (((curRoll + i - curNg) % 10 === 0) && (curRoll + i >= curNg)) {
-                                gRollIndexInCycle = i;
-                                break;
-                            }
+                    resTen.items.forEach(item => {
+                        // 有効なターゲットがある場合のみカウント
+                        if (hasValidLayers) {
+                            effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) addLayer[idx]++; });
                         }
-                    }
+                        if (item.rarity === 3) ubers++;
+                        if (item.rarity === 4) legends++;
+                        itemNames.push(getItemNameSafe(item.itemId));
+                    });
 
-                    if (gRollIndexInCycle !== -1) {
-                        const gRarityNode = Nodes[curIdx - 1];
-                        if (!gRarityNode) {
-                            validCycle = false;
-                        } else {
-                            gRarityId = gRarityNode.rarityGId;
-                            curIdx++; // Consume seed for guaranteed rarity
-                        }
-                    }
+                    const nextStateTen = {
+                        nodeIdx: state.nodeIdx + resTen.useSeeds,
+                        lastId: resTen.nextLastId,
+                        currentNg: resTen.nextNg,
+                        layerCounts: state.layerCounts.map((c, idx) => c + addLayer[idx]),
+                        ubers: state.ubers + ubers,
+                        legends: state.legends + legends,
+                        path: state.path.concat({ type: 'ten', items: itemNames, addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
+                        rollCount: state.rollCount + 10,
+                        tickets: t + 10
+                    };
 
-                    if (validCycle) {
-                        for (let j = 0; j < 10; j++) {
-                            const currentRollNumber = curRoll + j;
-                            if (j === gRollIndexInCycle) {
-                                // Guaranteed Slot
-                                const gSlotNode = Nodes[curIdx - 1];
-                                if (!gSlotNode) { validCycle = false; break; }
-                                
-                                const poolG = gacha.rarityItems[gRarityId] || [];
-                                const slotG = gSlotNode.seed1 % Math.max(1, poolG.length);
-                                const itemIdG = poolG[slotG];
-                                const rarityG = itemMaster[itemIdG]?.rarity || 0;
-
-                                items.push(getItemNameSafe(itemIdG));
-                                targetLayers.forEach((ids, idx) => { if (ids.includes(itemIdG)) addLayer[idx]++; });
-                                if (rarityG === 3) ubers++;
-                                if (rarityG === 4) legends++;
-
-                                curLastId = itemIdG;
-                                curIdx += 1;
-                                curNg = gacha.guaranteedCycle || 30;
-
-                            } else {
-                                // Normal Slot
-                                const node = Nodes[curIdx - 1];
-                                if (!node) { validCycle = false; break; }
-
-                                const isMatch = (node.itemId !== -1 && node.itemId === curLastId);
-                                const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
-                                
-                                let finalId = node.itemId;
-                                let useSeeds = 2;
-                                if (isRR) {
-                                    finalId = node.reRollItemId;
-                                    useSeeds = 3;
-                                }
-
-                                const finalRarity = itemMaster[finalId]?.rarity || 0;
-                                items.push(getItemNameSafe(finalId));
-                                targetLayers.forEach((ids, idx) => { if (ids.includes(finalId)) addLayer[idx]++; });
-                                if (finalRarity === 3) ubers++;
-                                if (finalRarity === 4) legends++;
-                                
-                                curLastId = finalId;
-                                curIdx += useSeeds;
-                                if (!isNaN(curNg) && curNg !== 'none') {
-                                   curNg = (curNg <= 1) ? (gacha.guaranteedCycle || 30) : curNg - 1;
-                                }
-                            }
-                        }
-                    }
-
-                    if (validCycle) {
-                        const nextStateTen = {
-                            nodeIdx: curIdx,
-                            lastId: curLastId,
-                            currentNg: curNg,
-                            layerCounts: state.layerCounts.map((c, idx) => c + addLayer[idx]),
-                            ubers: state.ubers + ubers,
-                            legends: state.legends + legends,
-                            path: state.path.concat({ type: 'ten', items: items, addr: startNode.address }),
-                            rollCount: curRoll + 10
-                        };
-                        const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}`;
-                        if (!dp[t + 10].has(keyTen) || calculateScore(dp[t + 10].get(keyTen)) < calculateScore(nextStateTen)) {
-                            dp[t + 10].set(keyTen, nextStateTen);
-                        }
+                    const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}_${nextStateTen.layerCounts.join('-')}`;
+                    const existingTen = dp[t + 10].get(keyTen);
+                    if (!existingTen || calculateScore(existingTen) < calculateScore(nextStateTen)) {
+                        dp[t + 10].set(keyTen, nextStateTen);
                     }
                 }
             }
         }
     }
-    return findBestBeamSearchResult(dp, totalTickets);
+    
+    // 最終的に最もスコアの高い状態を見つける
+    return findBestBeamSearchResult(dp, totalTickets, calculateScore);
 }
 
 ====================
@@ -843,266 +949,201 @@ FILE: logic-uncompleted-sim.js
 ====================
 /**
  * 担当: 「未コンプ」ビュー用の10連ガチャシミュレーションおよび期待値計算ロジック
- * 依存関係: logic-common.js
+ * 依存関係: logic-common.js, utils.js
  */
+
+// =================================================================================
+// 1. 通常枠の計算パーツ
+// =================================================================================
 
 /**
- * 10連詳細（現在地からの1回分）を計算するロジック
+ * 通常枠（レアリティ判定、スロット、被り再抽選）の計算を行う
  */
-function calculateTenPullDetailedLogic(fullSeedArray, gacha, thresholds, ngVal, initialLastRollId, getAddressFunc) {
-    const isGuaranteedActive = !isNaN(ngVal);
-    const guaranteedCycle = gacha.guaranteedCycle || 30;
+function calculateNormalRollResult(fullSeedArray, currentIndex, thresholds, lastItemId) {
+    const sRarity = fullSeedArray[currentIndex];
+    const sSlot = fullSeedArray[currentIndex + 1];
     
-    let guaranteedStatus = 'none';
-    let currentNgVal = ngVal;
-    
-    // Featured 判定で実際に消費したシードの数をトラック
-    let featuredSeedPtr = 0; 
-    
-    if (isGuaranteedActive && currentNgVal > 0) {
-        if (currentNgVal <= 10) {
-            guaranteedStatus = `next guaranteed(${currentNgVal}) <= 10 → 9ロール抽選`;
-        } else {
-            guaranteedStatus = `next guaranteed(${currentNgVal}) >= 11 → 10ロール抽選`;
+    if (sRarity === undefined || sSlot === undefined) return null;
+
+    const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
+    const pool = gachaMaster[window.activeGachaId]?.rarityItems[rarityInfo.id] || [];
+    const poolSize = pool.length > 0 ? pool.length : 1;
+    const itemId = (pool[sSlot % poolSize] !== undefined) ? pool[sSlot % poolSize] : -1;
+    const itemName = getItemNameSafe(itemId);
+
+    let finalId = itemId;
+    let finalName = itemName;
+    let consumed = 2;
+    let isReroll = false;
+    let preRerollName = null;
+    let logStr = `S${currentIndex + 1}→${rarityInfo.name}, S${currentIndex + 2}→${itemName}`;
+
+    // レア(ID:1)の被り再抽選
+    if (rarityInfo.id === 1 && itemId !== -1 && itemId === lastItemId) {
+        const sReRoll = fullSeedArray[currentIndex + 2];
+        if (sReRoll !== undefined) {
+            const rePool = pool.filter(id => id !== itemId);
+            if (rePool.length > 0) {
+                isReroll = true;
+                preRerollName = itemName;
+                finalId = rePool[sReRoll % rePool.length];
+                finalName = getItemNameSafe(finalId);
+                logStr += ` [Dupe], S${currentIndex + 3}→${finalName}`;
+                consumed = 3;
+            }
         }
-    } else {
-        guaranteedStatus = 'Not Guaranteed/NG Invalid → 10ロール抽選';
     }
+    return { finalId, finalName, consumed, isReroll, preRerollName, logStr };
+}
 
-    const featuredLog = [];
-    const processLog = [];
-    const results = [];
-    let featuredCountInCycle = 0; 
+// =================================================================================
+// 2. 10連シミュレーション
+// =================================================================================
 
-    // 目玉判定用シード (S1～S10) の計算
+/**
+ * 10連スロット用シード(S1~S10)による目玉判定を事前に行う
+ */
+function getFeaturedSeedResults(fullSeedArray, gacha, ngVal, isGuaranteedActive) {
     const featuredResults = [];
-    for (let i = 1; i <= 10; i++) { 
-        const isGuaranteedRoll = isGuaranteedActive && i === currentNgVal && currentNgVal <= 10;
+    const featuredLog = [];
+    let featuredSeedPtr = 0;
 
+    for (let i = 1; i <= 10; i++) {
+        const isGuaranteedRoll = isGuaranteedActive && i === ngVal && ngVal <= 10;
         if (isGuaranteedRoll) {
-             featuredLog.push(`S${i} (Skipped): Guaranteed Roll (${currentNgVal})`);
-             continue;
+            featuredLog.push(`S${i} (Skipped): Guaranteed Roll (${ngVal})`);
+            continue;
         }
         
         const sVal = fullSeedArray[featuredSeedPtr];
-        if (sVal === undefined) {
-             console.error(`Seed is undefined at index ${featuredSeedPtr}.`);
-             break; 
-        }
+        if (sVal === undefined) break;
 
-        const mod = sVal % 10000;
-        const isFeatured = mod < gacha.featuredItemRate;
-        featuredResults.push({ index: i, isFeatured: isFeatured, seedIndex: featuredSeedPtr + 1 });
-        featuredLog.push(`S${featuredSeedPtr + 1} (${sVal}) % 10000 = ${mod} < ${gacha.featuredItemRate} → ${isFeatured} (Roll ${i}用)`);
+        const isFeatured = (sVal % 10000) < gacha.featuredItemRate;
+        featuredResults.push({ index: i, isFeatured, seedIndex: featuredSeedPtr + 1 });
+        featuredLog.push(`S${featuredSeedPtr + 1} (${sVal}) % 10000 = ${sVal % 10000} < ${gacha.featuredItemRate} → ${isFeatured}`);
         featuredSeedPtr++;
     }
+    return { featuredResults, featuredLog, featuredSeedPtr };
+}
 
-    let currentSeedIndex = featuredSeedPtr; 
+/**
+ * 10連ガチャ1回分の計算を行う
+ */
+function calculateTenPullDetailedLogic(fullSeedArray, gacha, thresholds, ngVal, initialLastRollId, getAddressFunc) {
+    const isGuaranteedActive = !isNaN(ngVal);
+    const { featuredResults, featuredLog, featuredSeedPtr } = getFeaturedSeedResults(fullSeedArray, gacha, ngVal, isGuaranteedActive);
+    
+    let currentSeedIndex = featuredSeedPtr;
     let lastItemId = initialLastRollId || -1;
-    const rollCount = 10;
-    let featuredIdxPtr = 0; 
+    let featuredCountInCycle = 0;
+    let featuredIdxPtr = 0;
+    const results = [];
+    const processLog = [];
 
-    for (let r = 1; r <= rollCount; r++) {
+    for (let r = 1; r <= 10; r++) {
         let label = `Roll${r}`;
-        
-        // 確定ロール判定
-        if (isGuaranteedActive && r === currentNgVal) {
+        if (isGuaranteedActive && r === ngVal) {
             label += `(G${r})`;
-            if (currentNgVal <= 10) { 
-                processLog.push(`${label} (Skipped): Guaranteed Roll`);
-            } else {
-                processLog.push(`${label}: Featured Item by guaranteed`); 
-            }
-            results.push({ label: label, name: '目玉(確定)', isGuaranteed: true, isFeatured: false, isReroll: false, preRerollName: null });
-            featuredCountInCycle++; 
-            continue;
+            processLog.push(ngVal <= 10 ? `${label} (Skipped): Guaranteed Roll` : `${label}: Featured Item by guaranteed`);
+            results.push({ label, name: '目玉(確定)', isGuaranteed: true, isFeatured: false, isReroll: false, preRerollName: null });
+            featuredCountInCycle++; continue;
         }
 
-        // 非確定ロール判定
-        const fRes = featuredResults[featuredIdxPtr];
-        if (!fRes) {
-             processLog.push(`${label}: **ERROR**: Featured check result missing.`);
-             break;
-        }
-        featuredIdxPtr++; 
-        
+        const fRes = featuredResults[featuredIdxPtr++];
+        if (!fRes) break;
+
         if (fRes.isFeatured) {
-            results.push({ label: label, name: '目玉', isGuaranteed: false, isFeatured: true, isReroll: false, preRerollName: null });
-             processLog.push(`${label}: Featured (by S${fRes.seedIndex})`);
-             lastItemId = -2;
-             featuredCountInCycle++; 
+            results.push({ label, name: '目玉', isGuaranteed: false, isFeatured: true, isReroll: false, preRerollName: null });
+            processLog.push(`${label}: Featured (by S${fRes.seedIndex})`);
+            lastItemId = -2; featuredCountInCycle++;
         } else {
-            // Continuation Seeds Consumption
-            const sRarity = fullSeedArray[currentSeedIndex];
-            const sSlot = fullSeedArray[currentSeedIndex+1];
-            
-            if (sRarity === undefined || sSlot === undefined) {
-                 processLog.push(`${label}: **ERROR**: Seed array ended unexpectedly.`);
-                 break; 
-            }
-
-            const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
-            const rId = rarityInfo.id;
-            const rName = rarityInfo.name;
-            let logStr = `${label}: S${currentSeedIndex+1}→${rName}`;
-            
-            const pool = gacha.rarityItems[rId] || [];
-            const poolSize = pool.length > 0 ? pool.length : 1;
-            const slot = sSlot % poolSize;
-            const itemId = (pool[slot] !== undefined) ? pool[slot] : -1;
-            const itemName = getItemNameSafe(itemId);
-            
-            logStr += `, S${currentSeedIndex+2}→${itemName}`;
-            
-            let finalId = itemId;
-            let finalName = itemName;
-            let consumed = 2;
-            let isReroll = false;
-            let preRerollName = null;
-
-            // Dupe Check
-            if (rId === 1 && itemId !== -1 && itemId === lastItemId) {
-                const sReRoll = fullSeedArray[currentSeedIndex+2];
-                if (sReRoll === undefined) break;
-                const rePool = pool.filter(id => id !== itemId);
-                const reDiv = rePool.length;
-                logStr += ` [Dupe]`;
-                if (reDiv > 0) {
-                    isReroll = true;
-                    preRerollName = itemName;
-                    const reSlot = sReRoll % reDiv;
-                    finalId = rePool[reSlot];
-                    finalName = getItemNameSafe(finalId);
-                    logStr += `, S${currentSeedIndex+3}→${finalName}`;
-                }
-                consumed = 3;
-            }
-
-            processLog.push(logStr);
-            results.push({ label: label, name: finalName, isGuaranteed: false, isFeatured: false, isReroll: isReroll, preRerollName: preRerollName });
-            currentSeedIndex += consumed;
-            lastItemId = finalId;
+            const roll = calculateNormalRollResult(fullSeedArray, currentSeedIndex, thresholds, lastItemId);
+            if (!roll) break;
+            processLog.push(`${label}: ${roll.logStr}`);
+            results.push({ label, name: roll.finalName, isGuaranteed: false, isFeatured: false, isReroll: roll.isReroll, preRerollName: roll.preRerollName });
+            currentSeedIndex += roll.consumed; lastItemId = roll.finalId;
         }
     }
 
-    const nextSeedVal = fullSeedArray[currentSeedIndex]; 
-    const nextIndex = currentSeedIndex + 1;
-    const nextAddress = (fullSeedArray.length > currentSeedIndex) ? getAddressFunc(nextIndex) : 'End';
-    const nextNgVal = isGuaranteedActive ? currentNgVal : NaN;
-    const seedsConsumedCorrectly = currentSeedIndex; 
-
     return {
-        guaranteedStatus, featuredLog, processLog, results, featuredCountInCycle,
-        transition: { consumedCount: seedsConsumedCorrectly, nextIndex: nextIndex, nextAddress: nextAddress, nextSeed: nextSeedVal, lastItemId: lastItemId, nextNgVal: nextNgVal }
+        guaranteedStatus: isGuaranteedActive && ngVal > 0 ? (ngVal <= 10 ? `next G(${ngVal}) <= 10` : `next G(${ngVal}) >= 11`) : 'none',
+        featuredLog, processLog, results, featuredCountInCycle,
+        transition: { consumedCount: currentSeedIndex, nextIndex: currentSeedIndex + 1, nextAddress: getAddressFunc(currentSeedIndex + 1), nextSeed: fullSeedArray[currentSeedIndex], lastItemId, nextNgVal: ngVal }
     };
 }
+
+// =================================================================================
+// 3. 複数サイクル・期待値計算
+// =================================================================================
 
 /**
  * nサイクル分の10連計算を実行
  */
 function calculateTenPullsOverCycles(initialFullSeedArray, gacha, thresholds, initialNgVal, initialLastRollId, nCycles = 10) {
     const getAddress = (n) => getAddressStringGeneric(n, 3);
-    const guaranteedCycle = gacha.guaranteedCycle || 30; // 確定サイクルの値を取得
+    const guaranteedCycle = gacha.guaranteedCycle || 30;
     let currentSeedArray = [...initialFullSeedArray];
     let currentLastRollId = initialLastRollId;
     let currentNgVal = initialNgVal;
-    
     const cycleResults = [];
-    const maxSeedsInTenPull = 40; 
 
     for (let c = 1; c <= nCycles; c++) {
         if (currentSeedArray.length < 1) break;
-        const tenPullSeedSlice = currentSeedArray.slice(0, maxSeedsInTenPull); 
-        const cycleResult = calculateTenPullDetailedLogic(tenPullSeedSlice, gacha, thresholds, currentNgVal, currentLastRollId, getAddress);
-        
-        cycleResults.push({ cycle: c, ...cycleResult, startNgVal: currentNgVal, startLastRollId: currentLastRollId });
+        const res = calculateTenPullDetailedLogic(currentSeedArray.slice(0, 40), gacha, thresholds, currentNgVal, currentLastRollId, getAddress);
+        cycleResults.push({ cycle: c, ...res, startNgVal: currentNgVal, startLastRollId: currentLastRollId });
 
-        const consumedCount = cycleResult.transition.consumedCount;
-        currentSeedArray = currentSeedArray.slice(consumedCount);
-        currentLastRollId = cycleResult.transition.lastItemId;
-        let nextNgValFromLogic = cycleResult.transition.nextNgVal; // logicから返されたNG値
-
-        // 10連が終わった時点で10ロール分マイナスする
-        if (!isNaN(nextNgValFromLogic)) {
-                currentNgVal = nextNgValFromLogic - 10;
-            // 確定サイクルをまたいだ場合の処理
-            if (currentNgVal <= 0) {
-                 currentNgVal = guaranteedCycle + currentNgVal;
-            }
-        } else {
-            // 確定システムが無効な場合はそのまま NaN を維持
-            currentNgVal = nextNgValFromLogic;
+        currentSeedArray = currentSeedArray.slice(res.transition.consumedCount);
+        currentLastRollId = res.transition.lastItemId;
+        if (!isNaN(currentNgVal)) {
+            currentNgVal = res.transition.nextNgVal - 10;
+            if (currentNgVal <= 0) currentNgVal = guaranteedCycle + currentNgVal;
         }
     }
     return cycleResults;
 }
 
 /**
- * 単発Nロール後の10連目玉獲得数期待値の計算ロジック
+ * 単発Nロール後の内部状態（シード位置、NG値、直前ID）を算出
+ */
+function simulateSingleRollsAndGetState(n, seedArray, initialNg, initialLastRoll, gacha, thresholds) {
+    const guaranteedCycle = gacha.guaranteedCycle || 30;
+    let currentSeedIndex = 0;
+    let currentNg = !isNaN(initialNg) && initialNg > 0 ? initialNg : guaranteedCycle;
+    let lastItemId = initialLastRoll || -1;
+
+    for (let r = 1; r <= n; r++) {
+        if (currentSeedIndex >= seedArray.length) break;
+        const isFeatured = (seedArray[currentSeedIndex] % 10000) < gacha.featuredItemRate;
+        const isGuaranteedRoll = (currentNg === 1);
+
+        if (isGuaranteedRoll || isFeatured) {
+            currentSeedIndex += 1;
+            currentNg = isGuaranteedRoll ? guaranteedCycle : (currentNg - 1 || guaranteedCycle);
+            lastItemId = -2;
+        } else {
+            const roll = calculateNormalRollResult(seedArray, currentSeedIndex, thresholds, lastItemId);
+            if (!roll) break;
+            currentSeedIndex += roll.consumed;
+            currentNg = (currentNg - 1 <= 0) ? guaranteedCycle : currentNg - 1;
+            lastItemId = roll.finalId;
+        }
+    }
+    return { nextSeedIndex: currentSeedIndex, nextNg: currentNg, nextLastRollId: lastItemId };
+}
+
+/**
+ * 期待値の計算
  */
 function calculateExpectedFeaturedCounts(initialFullSeedArray, gacha, thresholds, nRollsArray, initialNgVal, initialLastRollId) {
     const results = {};
-    const guaranteedCycle = gacha.guaranteedCycle || 30;
-    const tenPullSimulationLength = 40; 
-    
-    // Nロール後の状態をシミュレーション
-    const simulateSingleRollsAndGetState = (n, seedArray, initialNg, initialLastRoll) => {
-        let currentSeedIndex = 0;
-        let currentNg = !isNaN(initialNg) && initialNg > 0 ? initialNg : guaranteedCycle;
-        let lastItemId = initialLastRoll || -1;
-        
-        for (let r = 1; r <= n; r++) {
-            if (currentSeedIndex >= seedArray.length) break;
-            const isFeatured = (seedArray[currentSeedIndex] % 10000) < gacha.featuredItemRate;
-            const isGuaranteedRoll = (currentNg === 1);
-            let usedSeeds = 0;
-
-            if (isGuaranteedRoll) {
-                usedSeeds = 1; currentNg = guaranteedCycle; lastItemId = -2;
-            } else if (isFeatured) {
-                usedSeeds = 1; currentNg = currentNg - 1;
-                if (currentNg <= 0) currentNg = guaranteedCycle;
-                lastItemId = -2;
-            } else {
-                const sRarity = seedArray[currentSeedIndex+1];
-                const sSlot = seedArray[currentSeedIndex+2];
-                if (sRarity === undefined || sSlot === undefined) { usedSeeds = 3; break; }
-                const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
-                const rId = rarityInfo.id;
-                const pool = gacha.rarityItems[rId] || [];
-                const itemId = (pool[sSlot % (pool.length||1)] !== undefined) ? pool[sSlot % (pool.length||1)] : -1;
-                usedSeeds = 3;
-                let finalId = itemId;
-
-                if (rId === 1 && itemId !== -1 && itemId === lastItemId) {
-                    const sReRoll = seedArray[currentSeedIndex+3];
-                    if (sReRoll !== undefined) {
-                        const rePool = pool.filter(id => id !== itemId);
-                        if (rePool.length > 0) {
-                            finalId = rePool[sReRoll % rePool.length];
-                            usedSeeds = 4;
-                        }
-                    }
-                }
-                currentNg = currentNg - 1;
-                if (currentNg <= 0) currentNg = guaranteedCycle;
-                lastItemId = finalId;
-            }
-            currentSeedIndex += usedSeeds;
-        }
-        return { nextSeedIndex: currentSeedIndex, nextNg: currentNg, nextLastRollId: lastItemId };
-    };
-
     for (const n of nRollsArray) {
         if (n < 0) continue;
-        const { nextSeedIndex, nextNg, nextLastRollId } = simulateSingleRollsAndGetState(n, initialFullSeedArray, initialNgVal, initialLastRollId);
-        const tenPullSeedArray = initialFullSeedArray.slice(nextSeedIndex, nextSeedIndex + tenPullSimulationLength);
-
-        if (tenPullSeedArray.length < 9) {
-             results[n] = 0; continue;
-        }
-        const tenPullResult = calculateTenPullDetailedLogic(tenPullSeedArray, gacha, thresholds, nextNg, nextLastRollId, (addr) => `S${nextSeedIndex + addr}`);
-        results[n] = tenPullResult.featuredCountInCycle;
+        const state = simulateSingleRollsAndGetState(n, initialFullSeedArray, initialNgVal, initialLastRollId, gacha, thresholds);
+        const tenPullSeed = initialFullSeedArray.slice(state.nextSeedIndex, state.nextSeedIndex + 40);
+        if (tenPullSeed.length < 9) { results[n] = 0; continue; }
+        
+        const sim = calculateTenPullDetailedLogic(tenPullSeed, gacha, thresholds, state.nextNg, state.nextLastRollId, (addr) => `S${state.nextSeedIndex + addr}`);
+        results[n] = sim.featuredCountInCycle;
     }
     return results;
 }
@@ -2120,27 +2161,36 @@ function getFormattedItemComparison(nodeItemName, nodeItemId, nodeRarityId, prev
 /**
  * アイテムリンク生成ヘルパー
  */
+/**
+ * アイテムリンク生成ヘルパー (修正版)
+ * 引数がズレていても（第1引数がSEED値でも）動作するように調整
+ */
 function generateItemLink(baseParams, newSeed, newItemId, ngVal, rollNumberInSequence, isCompleted, fsVal) {
     const gId = window.activeGachaId;
     const paramsForQuery = {};
     
-    // baseParams (URLSearchParams) から現在の値をコピー
-    for (const [key, value] of baseParams.entries()) {
+    // 第1引数が URLSearchParams でない場合の互換性処理
+    let effectiveParams = baseParams;
+    let s = newSeed, id = newItemId, ng = ngVal, fs = fsVal;
+
+    if (!(baseParams instanceof URLSearchParams)) {
+        effectiveParams = new URLSearchParams(window.location.search);
+        s = arguments[0]; // 第1引数をSEEDとして扱う
+        id = arguments[1]; // 第2引数をアイテムIDとして扱う
+        ng = arguments[2]; // 第3引数をNG値として扱う
+        fs = arguments[5]; // 第6引数を在庫数として扱う
+    }
+
+    // ベースとなるパラメータをコピー
+    for (const [key, value] of effectiveParams.entries()) {
         paramsForQuery[key] = value;
     }
     
     if (!paramsForQuery.gacha) paramsForQuery.gacha = gId;
-
-    paramsForQuery.seed = newSeed;
-    if (newItemId !== undefined) paramsForQuery.lr = newItemId;
-    
-    if (fsVal !== undefined && fsVal !== null && !isNaN(fsVal)) {
-        paramsForQuery.fs = fsVal;
-    }
-
-    if (ngVal !== undefined && ngVal !== null) {
-        paramsForQuery.ng = ngVal.toString();
-    }
+    paramsForQuery.seed = s;
+    if (id !== undefined) paramsForQuery.lr = id;
+    if (fs !== undefined && fs !== null && !isNaN(fs)) paramsForQuery.fs = fs;
+    if (ng !== undefined && ng !== null) paramsForQuery.ng = ng.toString();
     
     return generateUrlQuery(paramsForQuery);
 }
@@ -2237,7 +2287,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             
             let cls = determineHighlightClass(info);
             const isPartnerRR = (node.reRollFlag || node.reRerollFlag);
-            
+
             let linkSeeds = {
                 normal: node.seed2, 
                 reroll: isPartnerRR ? node.seed3 : null, 
@@ -2258,36 +2308,51 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                 return name;
             };
 
-            const buildStaticItemDisplay = (isGuaranteedColumn) => {
-                if (isGuaranteedColumn) {
-                    const base = getFmt(node.itemGId, true);
-                    if (isPartnerRR) {
-                        const poolG = gacha.rarityItems[node.rarityGId] || [];
-                        const itemG_rr_Id = poolG[node.seed2 % Math.max(1, poolG.length)];
-                        return `${base}<br>${getFmt(itemG_rr_Id, true)}`;
-                    }
-                    return base;
-                } else {
-                    const base = getFmt(node.itemId);
-                    if (isPartnerRR) {
-                        return `${base}<br>${getAddress(node.index + 3)}) ${getFmt(node.reRollItemId)}`;
-                    }
-                    return base;
-                }
-            };
-
             let displayHtml = '---';
             if (node.itemId !== -1) {
-                const nameHtml = buildStaticItemDisplay(isGuar);
-
                 if (displaySeed === '1') {
+                    const buildStaticItemDisplay = (isGuaranteedColumn) => {
+                        if (isGuaranteedColumn) {
+                            const base = getFmt(node.itemGId, true);
+                            if (isPartnerRR) {
+                                const poolG = gacha.rarityItems[node.rarityGId] || [];
+                                const itemG_rr_Id = poolG[node.seed2 % Math.max(1, poolG.length)];
+                                return `${base}<br>${getFmt(itemG_rr_Id, true)}`;
+                            }
+                            return base;
+                        } else {
+                            const base = getFmt(node.itemId);
+                            if (isPartnerRR) {
+                                return `${base}<br>${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}`;
+                            }
+                            return base;
+                        }
+                    };
+                    const nameHtml = buildStaticItemDisplay(isGuar);
                     const json = JSON.stringify(linkSeeds).replace(/"/g, '&quot;');
                     displayHtml = `<a href="#" onclick="showCalculationPopup(${node.index - 1}, ${isGuar}, ${json}); return false;">${nameHtml}</a>`;
                 } else {
-                    // リンク先シードの計算ロジック（単発遷移）
-                    const lSeed = isGuar ? (isPartnerRR ? node.seed3 : node.seed2) : (isPartnerRR ? node.seed3 : node.seed2);
-                    const lId = isGuar ? (isPartnerRR ? (gacha.rarityItems[node.rarityGId] || [])[node.seed2 % Math.max(1, (gacha.rarityItems[node.rarityGId] || []).length)] : node.itemGId) : (isPartnerRR ? node.reRollItemId : node.itemId);
-                    displayHtml = `<a href="${generateItemLink(currentParams, lSeed, lId, initialNg, r, true)}">${nameHtml}</a>`;
+                    if (isGuar) {
+                        const baseName = getFmt(node.itemGId, true);
+                        if (isPartnerRR) {
+                            const poolG = gacha.rarityItems[node.rarityGId] || [];
+                            const itemG_rr_Id = poolG[node.seed2 % Math.max(1, poolG.length)];
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, itemG_rr_Id, initialNg, r, true)}">${getFmt(itemG_rr_Id, true)}</a>`;
+                            displayHtml = `${link1}<br>${link2}`;
+                        } else {
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
+                        }
+                    } else {
+                        const baseName = getFmt(node.itemId);
+                        if (isPartnerRR) {
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, node.reRollItemId, initialNg, r, true)}">${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}</a>`;
+                            displayHtml = `${link1}<br>${link2}`;
+                        } else {
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
+                        }
+                    }
                 }
             }
             return { html: `<td class="${cls || ''}">${displayHtml}</td>` };
@@ -2310,329 +2375,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
 ====================
 FILE: view-simulation.js
 ====================
-/**
- * 担当: シミュレーションUIの構築、ターゲット選択管理、および結果の描画
- */
-
-/**
- * シミュレーション表示エリアの初期化
- */
-function initializeSimulationView(gacha) {
-    const simContainer = document.getElementById('sim-ui-container');
-    if (!simContainer) return;
-
-    // 既存の内容をクリアして再構築
-    simContainer.innerHTML = '';
-    simContainer.dataset.initialized = 'true';
-
-    const simGroup = document.createElement('div');
-    simGroup.id = 'sim-ui-group';
-    simGroup.style.padding = '15px';
-    simGroup.style.background = '#eef6ff';
-    simGroup.style.borderRadius = '8px';
-    simGroup.style.border = '1px solid #bdd7ff';
-    simGroup.style.marginTop = '10px';
-
-    // 上部コントロール行（チケット、開始、コピー）
-    const controlRow = document.createElement('div');
-    controlRow.style.display = 'flex';
-    controlRow.style.alignItems = 'center';
-    controlRow.style.flexWrap = 'wrap';
-    controlRow.style.gap = '15px';
-    controlRow.style.marginBottom = '12px';
-    
-    controlRow.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 5px;">
-            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">チケット:</label>
-            <input type="number" id="simTicketInput" value="30" min="1" max="1000" 
-                   style="width: 60px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-        </div>
-        <div id="selectedTargetStatus" style="font-size: 0.75rem; color: #0056b3; font-weight: bold; 
-             background: #fff; padding: 5px 10px; border-radius: 4px; border: 1px solid #bdd7ff;">
-            階層: 1
-        </div>
-        <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; 
-                padding: 7px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-            シミュレーション開始
-        </button>
-        <button id="copySimResultBtn" style="background-color: #6c757d; color: white; border: none; 
-                padding: 7px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-            結果をコピー
-        </button>
-    `;
-    simGroup.appendChild(controlRow);
-
-    // ターゲット階層コンテナ
-    const layersContainer = document.createElement('div');
-    layersContainer.id = 'targetLayersContainer';
-    simGroup.appendChild(layersContainer);
-
-    // 階層追加ボタン
-    const addLayerBtn = document.createElement('button');
-    addLayerBtn.id = 'addPriorityLayerBtn';
-    addLayerBtn.textContent = '＋ 次順位の階層を追加';
-    addLayerBtn.style.marginTop = '10px';
-    addLayerBtn.style.fontSize = '0.75rem';
-    addLayerBtn.style.padding = '5px 10px';
-    addLayerBtn.style.cursor = 'pointer';
-    addLayerBtn.style.backgroundColor = '#fff';
-    addLayerBtn.style.border = '1px solid #007bff';
-    addLayerBtn.style.color = '#007bff';
-    addLayerBtn.style.borderRadius = '4px';
-    simGroup.appendChild(addLayerBtn);
-    
-    simContainer.appendChild(simGroup);
-
-    // 結果表示エリア
-    const resultDisplay = document.createElement('div');
-    resultDisplay.id = 'sim-result-text';
-    resultDisplay.style.marginTop = '15px';
-    resultDisplay.style.padding = '15px';
-    resultDisplay.style.border = '2px dashed #28a745';
-    resultDisplay.style.backgroundColor = '#fafffa';
-    resultDisplay.style.whiteSpace = 'pre-wrap';
-    resultDisplay.style.fontFamily = 'monospace';
-    resultDisplay.style.fontSize = '0.85rem';
-    resultDisplay.style.display = 'none';
-    resultDisplay.style.borderRadius = '8px';
-    simContainer.appendChild(resultDisplay);
-
-    // イベント紐付け
-    addLayerBtn.onclick = () => createLayerUI(gacha, layersContainer.children.length + 1);
-    document.getElementById('runSimBtn').onclick = runSimulation;
-    document.getElementById('copySimResultBtn').onclick = copySimResult;
-
-    // 初期階層を作成
-    createLayerUI(gacha, 1);
-}
-
-/**
- * 優先ターゲット選択用のUI階層を作成
- */
-function createLayerUI(gacha, priority) {
-    const layersContainer = document.getElementById('targetLayersContainer');
-    if (!layersContainer) return;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'priority-layer-wrapper';
-    wrapper.style.marginTop = '12px';
-    wrapper.style.padding = '10px';
-    wrapper.style.background = '#fff';
-    wrapper.style.border = '1px solid #ccc';
-    wrapper.style.borderRadius = '6px';
-
-    wrapper.innerHTML = `<div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 8px; color: #004085;">
-        【第 ${priority} 優先ターゲット】
-    </div>`;
-
-    const area = document.createElement('div');
-    area.className = 'layer-selection-area';
-    area.dataset.priority = priority;
-    area.style.display = 'flex';
-    area.style.flexWrap = 'wrap';
-    area.style.gap = '10px';
-    area.style.maxHeight = '120px';
-    area.style.overflowY = 'auto';
-    area.style.padding = '5px';
-
-    populateLayerWithOptions(area, gacha);
-
-    wrapper.appendChild(area);
-    layersContainer.appendChild(wrapper);
-
-    const status = document.getElementById('selectedTargetStatus');
-    if (status) status.textContent = `階層: ${layersContainer.children.length}`;
-}
-
-/**
- * 選択エリアにアイテムのチェックボックスを配置
- */
-function populateLayerWithOptions(area, gacha) {
-    area.innerHTML = '';
-    const targetPool = [];
-    
-    // 全レアリティのアイテムを収集
-    Object.keys(gacha.rarityItems).sort((a, b) => parseInt(b) - parseInt(a)).forEach(rid => {
-        if (gacha.rarityItems[rid]) targetPool.push(...gacha.rarityItems[rid]);
-    });
-
-    // 重複を除去して描画
-    Array.from(new Set(targetPool)).forEach(id => {
-        const item = itemMaster[id];
-        if (!item) return;
-
-        const label = document.createElement('label');
-        label.style.fontSize = '0.75rem';
-        label.style.display = 'flex';
-        label.style.alignItems = 'center';
-        label.style.cursor = 'pointer';
-        label.style.background = '#f8f9fa';
-        label.style.padding = '2px 6px';
-        label.style.borderRadius = '3px';
-        label.style.border = '1px solid #eee';
-
-        let color = '#333';
-        if (item.rarity === 2) color = '#c0a000'; // 激レア
-        else if (item.rarity === 3) color = '#d9534f'; // 超激レア
-        else if (item.rarity === 4) color = '#0000ff'; // 伝説レア
-
-        label.innerHTML = `
-            <input type="checkbox" class="layer-target-checkbox" value="${id}" style="margin-right: 5px;">
-            <span style="color: ${color}; font-weight: ${item.rarity >= 3 ? 'bold' : 'normal'};">${item.name}</span>
-        `;
-        area.appendChild(label);
-    });
-}
-
-/**
- * ガチャ切り替え時にUI内のアイテムリストを更新
- */
-function updateSimGachaItems(gacha) {
-    const layers = document.querySelectorAll('.layer-selection-area');
-    layers.forEach(area => populateLayerWithOptions(area, gacha));
-}
-
-/**
- * ビームサーチを実行し結果を表示
- */
-function runSimulation() {
-    if (!viewData.calculatedData) {
-        alert("表示データがありません。まず「更新」ボタンを押してガチャ結果を表示してください。");
-        return;
-    }
-    
-    const { Nodes, thresholds } = viewData.calculatedData;
-    const { gacha, initialLastRollId } = viewData;
-    const params = new URLSearchParams(window.location.search);
-    const initialNg = params.get('ng') || 'none';
-
-    const tickets = parseInt(document.getElementById('simTicketInput').value);
-    if (isNaN(tickets) || tickets <= 0) {
-        alert("チケット枚数を正しく入力してください。");
-        return;
-    }
-
-    // 各階層でチェックされたアイテムIDを取得
-    const layers = document.querySelectorAll('.layer-selection-area');
-    const targetLayers = Array.from(layers).map(area => {
-        const checked = area.querySelectorAll('.layer-target-checkbox:checked');
-        return Array.from(new Set(Array.from(checked).map(cb => parseInt(cb.value))));
-    });
-
-    // ビームサーチ実行 (logic-completed-search.js)
-    const result = runGachaBeamSearchCorrected(Nodes, initialLastRollId, tickets, gacha, thresholds, initialNg, targetLayers);
-    const display = document.getElementById('sim-result-text');
-
-    if (!result) { 
-        display.textContent = "指定されたチケット枚数内でターゲットを獲得できるルートが見つかりませんでした。";
-        display.style.display = 'block';
-        window.lastSimText = "";
-    } else {
-        display.innerHTML = "";
-        
-        // ヘッダー（スコア情報）
-        const hdr = document.createElement('div');
-        hdr.style.fontWeight = 'bold';
-        hdr.style.marginBottom = '12px';
-        hdr.style.borderBottom = '1px solid #28a745';
-        hdr.style.paddingBottom = '5px';
-        
-        let statusT = result.layerCounts.map((c, i) => `P${i + 1}:${c}`).join(', ');
-        hdr.textContent = `【最適ルート】(獲得数 -> ${statusT} / 超激:${result.ubers} / 伝説:${result.legends})`;
-        display.appendChild(hdr);
-
-        let plainText = `【最適ルートシミュレーション結果】(${statusT}, 超激:${result.ubers}, 伝説:${result.legends})\n\n`;
-        const path = result.path;
-        let i = 0;
-
-        while (i < path.length) {
-            const rowC = document.createElement('div');
-            rowC.className = 'sim-row';
-            rowC.style.display = 'flex';
-            rowC.style.gap = '8px';
-            rowC.style.marginBottom = '6px';
-            rowC.style.alignItems = 'flex-start';
-
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.style.marginTop = '3px';
-            cb.style.cursor = 'pointer';
-            
-            const span = document.createElement('span');
-            span.style.lineHeight = '1.4';
-
-            let rowHeader = "";
-            let rowHtml = "";
-            let rowPlain = "";
-
-            const getColoredItemHtml = (name) => {
-                const itemEntry = Object.values(itemMaster).find(it => it.name === name);
-                if (!itemEntry) return name;
-                if (itemEntry.rarity === 3) return `<span style="color: #d9534f; font-weight: bold;">${name}</span>`;
-                if (itemEntry.rarity === 4) color = `<span style="color: #0000ff; font-weight: bold;">${name}</span>`;
-                return name;
-            };
-
-            if (path[i].type === 'single') {
-                // 連続する単発をまとめる
-                let j = i;
-                let itemsHtml = [];
-                let itemsPlain = [];
-                while (j < path.length && path[j].type === 'single') { 
-                    itemsHtml.push(getColoredItemHtml(path[j].item));
-                    itemsPlain.push(path[j].item); 
-                    j++;
-                }
-                rowHeader = `<span style="color: #007bff; font-weight: bold;">[単発]</span> ${j - i}ロール (${path[i].addr}～):<br>`;
-                rowHtml = "　=> " + itemsHtml.join('、');
-                rowPlain = `[単発] ${j - i}ロール (${path[i].addr}～) => ` + itemsPlain.join('、');
-                i = j;
-            } else {
-                // 10連
-                rowHeader = `<span style="color: #c0a000; font-weight: bold;">[10連]</span> (${path[i].addr}～):<br>`;
-                rowHtml = "　=> " + path[i].items.map(n => getColoredItemHtml(n)).join('、');
-                rowPlain = `[10連] (${path[i].addr}～) => ` + path[i].items.join('、');
-                i++;
-            }
-
-            span.innerHTML = rowHeader + rowHtml;
-            plainText += rowPlain + "\n";
-
-            // 消し込み（打ち消し線）機能
-            cb.onchange = () => { 
-                span.style.color = cb.checked ? '#aaa' : '#333';
-                span.style.textDecoration = cb.checked ? 'line-through' : 'none'; 
-            };
-
-            rowC.appendChild(cb);
-            rowC.appendChild(span);
-            display.appendChild(rowC);
-        }
-        
-        window.lastSimText = plainText;
-        display.style.display = 'block';
-    }
-}
-
-/**
- * シミュレーション結果をクリップボードにコピー
- */
-function copySimResult() {
-    if (window.lastSimText && navigator.clipboard) {
-        navigator.clipboard.writeText(window.lastSimText).then(() => {
-            const btn = document.getElementById('copySimResultBtn');
-            const originalText = btn.textContent;
-            btn.textContent = 'コピー完了！';
-            btn.style.backgroundColor = '#28a745';
-            setTimeout(() => { 
-                btn.textContent = originalText; 
-                btn.style.backgroundColor = '#6c757d';
-            }, 1500);
-        });
-    } else {
-        alert("コピーする結果がありません。先にシミュレーションを実行してください。");
-    }
-}
+//Delete
 
 ====================
 FILE: view-uncompleted-details.js
@@ -2795,6 +2538,42 @@ function renderUncompletedDetails(Nodes, highlightInfo, maxNodes, tenPullCyclesD
     // DOM挿入
     const detailsDiv = document.getElementById('calculation-details'); 
     detailsDiv.innerHTML = html;
+}
+
+====================
+FILE: view-uncompleted-main.js
+====================
+/**
+ * 担当: 「未コンプ」ビューの描画フロー制御（オーケストレーター）
+ * 依存関係: logic-uncompleted.js, view-uncompleted-table.js, view-uncompleted-details.js, view-uncompleted-ui.js
+ */
+
+/**
+ * 未コンプビューの初期化および描画のメインエントリポイント
+ */
+function createAndDisplayUncompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params) {
+    // 1. データ計算の実行 (logic-uncompleted.js)
+    const { 
+        Nodes, highlightInfo, maxNodes, 
+        tenPullCyclesData, expectedFeaturedCounts 
+    } = calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, params);
+
+    // URLパラメータから現在の設定値を計算
+    const ngVal = parseInt(params.get('ng'), 10);
+    const initialFs = parseInt(params.get('fs'), 10) || 0;
+    const guaranteedCycle = gacha.guaranteedCycle || 30;
+    let initialNg = !isNaN(ngVal) && ngVal > 0 ? ngVal : guaranteedCycle;
+
+    // 2. 計算過程の詳細表示をレンダリング (view-uncompleted-details.js)
+    renderUncompletedDetails(Nodes, highlightInfo, maxNodes, tenPullCyclesData, gacha, initialLastRollId, params);
+    
+    // 3. メインテーブルのレンダリング (view-uncompleted-table.js)
+    renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, expectedFeaturedCounts, tableRows, displaySeed, initialNg, initialFs, guaranteedCycle);
+
+    // 4. UI操作用ロジック（トグルボタン等）の初期化 (view-uncompleted-ui.js)
+    if (typeof setupDetailsToggleLogic === 'function') {
+        setupDetailsToggleLogic();
+    }
 }
 
 ====================
@@ -3094,48 +2873,45 @@ function renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, exp
 }
 
 ====================
-FILE: view-uncompleted.js
+FILE: view-uncompleted-ui.js
 ====================
 /**
- * 担当: 「未コンプ」ビュー全体の描画制御および各コンポーネントの呼び出し
- * 依存関係: logic-uncompleted.js, view-uncompleted-table.js, view-uncompleted-details.js
+ * 担当: 「未コンプ」ビューにおける計算過程（詳細）の表示切り替えUI制御
+ * 依存関係: なし（独立したUI操作）
  */
 
-function createAndDisplayUncompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params) {
-    // 1. データ計算 (Logic)
-    const { 
-        Nodes, highlightInfo, maxNodes, singleRoutePath, 
-        tenPullCyclesData, expectedFeaturedCounts 
-    } = calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, params);
-    
-    // デバッグ出力
-    console.log("Uncompleted Data Calculated:", { Nodes: Nodes.length, tenPullCyclesData, expectedFeaturedCounts });
-
-    // パラメータ取得
-    const ngVal = parseInt(params.get('ng'), 10);
-    const initialFs = parseInt(params.get('fs'), 10) || 0; 
-    const guaranteedCycle = gacha.guaranteedCycle || 30;
-    let initialNg = !isNaN(ngVal) && ngVal > 0 ? ngVal : guaranteedCycle;
-
-    // 2. 詳細画面 (Debug View) のレンダリング
-    renderUncompletedDetails(Nodes, highlightInfo, maxNodes, tenPullCyclesData, gacha, initialLastRollId, params);
-
-    // 3. メインテーブル (Main View) のレンダリング
-    // 注意: view-uncompleted-table.js 内の関数です。元の view-uncompleted.js の複雑なリンク生成ロジックは
-    // そちらに移動している前提です。
-    renderUncompletedMainTable(Nodes, highlightInfo, tenPullCyclesData, expectedFeaturedCounts, tableRows, displaySeed, initialNg, initialFs, guaranteedCycle);
-
-    // 4. 詳細表示トグルの制御
+/**
+ * 計算過程（デバッグビュー）の表示・非表示を切り替えるUI制御を設定する
+ * HTML要素の存在をチェックし、安全にイベントリスナーを登録します。
+ */
+function setupDetailsToggleLogic() {
     const detailsDiv = document.getElementById('calculation-details');
     const detailsControls = document.getElementById('details-controls');
     const toggleBtn = document.getElementById('toggleDetailsBtn');
+
+    // 必要なHTML要素が見つからない場合は、エラーを防止するため処理を中断します
+    if (!detailsDiv || !detailsControls || !toggleBtn) {
+        return;
+    }
+
+    // 以前の実行で追加された可能性のある動的要素（スクロールボタン等）をクリーニング
     const scrollButtons = detailsControls.querySelector('.scroll-buttons');
-    if (scrollButtons) scrollButtons.remove();
+    if (scrollButtons) {
+        scrollButtons.remove();
+    }
     
+    // 操作用コントロールを表示状態にする
     detailsControls.style.display = 'flex';
-    toggleBtn.style.display = 'inline-block'; 
+    toggleBtn.style.display = 'inline-block';
+
+    /**
+     * ボタンクリック時のトグル処理
+     * 表示状態に応じてテキストと表示スタイルを切り替えます。
+     */
     toggleBtn.onclick = () => {
-        if (detailsDiv.style.display === 'none') {
+        const isHidden = detailsDiv.style.display === 'none';
+        
+        if (isHidden) {
             detailsDiv.style.display = 'block';
             toggleBtn.textContent = '計算過程を非表示';
         } else {
@@ -3143,5 +2919,393 @@ function createAndDisplayUncompletedSeedView(initialSeed, gacha, tableRows, thre
             toggleBtn.textContent = '計算過程を表示';
         }
     };
+}
+
+====================
+FILE: view-uncompleted.js
+====================
+//Delete
+
+====================
+FILE: view-simulation-ui.js
+====================
+/**
+ * 担当: シミュレーションUIの基本要素の生成
+ */
+
+function createStyledElement(tag, styles = {}, properties = {}) {
+    const element = document.createElement(tag);
+    Object.assign(element.style, styles);
+
+    // `dataset` has only a getter and cannot be assigned directly.
+    // Handle it separately.
+    if (properties.dataset) {
+        Object.assign(element.dataset, properties.dataset);
+        delete properties.dataset; // Remove it to avoid conflict
+    }
+
+    Object.assign(element, properties);
+    return element;
+}
+
+function createControlRow() {
+    const row = createStyledElement('div', {
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '15px',
+        marginBottom: '12px'
+    });
+    row.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">チケット:</label>
+            <input type="number" id="simTicketInput" value="30" min="1" max="1000" 
+                   style="width: 60px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div id="selectedTargetStatus" style="font-size: 0.75rem; color: #0056b3; font-weight: bold; 
+             background: #fff; padding: 5px 10px; border-radius: 4px; border: 1px solid #bdd7ff;">
+            階層: 1
+        </div>
+        <button id="runSimBtn" class="sim-btn sim-btn-run">シミュレーション開始</button>
+        <button id="copySimResultBtn" class="sim-btn sim-btn-copy">結果をコピー</button>
+    `;
+    return row;
+}
+
+function createLayersGroup(gacha) {
+    const container = createStyledElement('div', {}, { id: 'targetLayersContainer' });
+    const addBtn = createStyledElement('button', {
+        marginTop: '10px',
+        fontSize: '0.75rem',
+        padding: '5px 10px',
+        cursor: 'pointer',
+        backgroundColor: '#fff',
+        border: '1px solid #007bff',
+        color: '#007bff',
+        borderRadius: '4px'
+    }, {
+        id: 'addPriorityLayerBtn',
+        textContent: '＋ 次順位の階層を追加'
+    });
+    addBtn.onclick = () => createLayerUI(gacha, container.children.length + 1);
+    return [container, addBtn];
+}
+
+function createResultDisplay() {
+    return createStyledElement('div', {
+        marginTop: '15px',
+        padding: '15px',
+        border: '2px dashed #28a745',
+        backgroundColor: '#fafffa',
+        whiteSpace: 'pre-wrap',
+        fontFamily: 'monospace',
+        fontSize: '0.85rem',
+        display: 'none',
+        borderRadius: '8px'
+    }, { id: 'sim-result-text' });
+}
+
+function createSimUIGroup(gacha) {
+    const group = createStyledElement('div', {
+        padding: '15px',
+        background: '#eef6ff',
+        borderRadius: '8px',
+        border: '1px solid #bdd7ff',
+        marginTop: '10px'
+    }, { id: 'sim-ui-group' });
+
+    const controlRow = createControlRow();
+    const [layersContainer, addLayerBtn] = createLayersGroup(gacha);
+    
+    group.append(controlRow, layersContainer, addLayerBtn);
+    return group;
+}
+
+====================
+FILE: view-simulation-layer.js
+====================
+/**
+ * 担当: シミュレーションUIの階層管理
+ */
+
+function createLayerUI(gacha, priority) {
+    const layersContainer = document.getElementById('targetLayersContainer');
+    if (!layersContainer) return;
+
+    const wrapper = createStyledElement('div', {
+        marginTop: '12px',
+        padding: '10px',
+        background: '#fff',
+        border: '1px solid #ccc',
+        borderRadius: '6px'
+    }, { className: 'priority-layer-wrapper' });
+
+    wrapper.innerHTML = `<div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 8px; color: #004085;">
+        【第 ${priority} 優先ターゲット】
+    </div>`;
+
+    const area = createStyledElement('div', {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        maxHeight: '120px',
+        overflowY: 'auto',
+        padding: '5px'
+    }, {
+        className: 'layer-selection-area',
+        dataset: { priority }
+    });
+
+    populateLayerWithOptions(area, gacha);
+    wrapper.appendChild(area);
+    layersContainer.appendChild(wrapper);
+
+    const status = document.getElementById('selectedTargetStatus');
+    if (status) status.textContent = `階層: ${layersContainer.children.length}`;
+}
+
+function populateLayerWithOptions(area, gacha) {
+    area.innerHTML = '';
+    const targetPool = [];
+    
+    Object.keys(gacha.rarityItems)
+          .sort((a, b) => parseInt(b) - parseInt(a))
+          .forEach(rid => {
+              if (gacha.rarityItems[rid]) targetPool.push(...gacha.rarityItems[rid]);
+          });
+
+    Array.from(new Set(targetPool)).forEach(id => {
+        const item = itemMaster[id];
+        if (!item) return;
+        area.appendChild(createItemCheckbox(item));
+    });
+}
+
+function createItemCheckbox(item) {
+    const label = createStyledElement('label', {
+        fontSize: '0.75rem',
+        display: 'flex',
+        alignItems: 'center',
+        cursor: 'pointer',
+        background: '#f8f9fa',
+        padding: '2px 6px',
+        borderRadius: '3px',
+        border: '1px solid #eee'
+    });
+
+    let color = '#333';
+    if (item.rarity === 2) color = '#c0a000'; // 激レア
+    else if (item.rarity === 3) color = '#d9534f'; // 超激レア
+    else if (item.rarity === 4) color = '#0000ff'; // 伝説レア
+
+    label.innerHTML = `
+        <input type="checkbox" class="layer-target-checkbox" value="${item.id}" style="margin-right: 5px;">
+        <span style="color: ${color}; font-weight: ${item.rarity >= 3 ? 'bold' : 'normal'};">${item.name}</span>
+    `;
+    return label;
+}
+
+function updateSimGachaItems(gacha) {
+    const layers = document.querySelectorAll('.layer-selection-area');
+    layers.forEach(area => populateLayerWithOptions(area, gacha));
+}
+
+====================
+FILE: view-simulation-result.js
+====================
+/**
+ * 担当: シミュレーション結果の表示
+ */
+
+function displaySimulationResult(result) {
+    const display = document.getElementById('sim-result-text');
+    display.style.display = 'block';
+    display.innerHTML = "";
+
+    if (!result) { 
+        display.textContent = "指定されたチケット枚数内でターゲットを獲得できるルートが見つかりませんでした。";
+        window.lastSimText = "";
+        return;
+    }
+    
+    const header = createResultHeader(result);
+    display.appendChild(header);
+
+    const { plainText, pathRows } = renderResultRows(result.path);
+    pathRows.forEach(row => display.appendChild(row));
+    
+    window.lastSimText = `【最適ルートシミュレーション結果】(${header.dataset.status})\n\n` + plainText;
+}
+
+function createResultHeader(result) {
+    const statusText = result.layerCounts.map((c, i) => `P${i + 1}:${c}`).join(', ');
+    const fullStatus = `${statusText} / 超激:${result.ubers} / 伝説:${result.legends}`;
+
+    const header = createStyledElement('div', {
+        fontWeight: 'bold',
+        marginBottom: '12px',
+        borderBottom: '1px solid #28a745',
+        paddingBottom: '5px'
+    });
+    header.textContent = `【最適ルート】(獲得数 -> ${fullStatus})`;
+    header.dataset.status = fullStatus;
+    return header;
+}
+
+function renderResultRows(path) {
+    let plainText = "";
+    const pathRows = [];
+    let i = 0;
+
+    while (i < path.length) {
+        let row, plain, consumed;
+        if (path[i].type === 'single') {
+            ({ row, plain, consumed } = renderConsecutiveSingles(path, i));
+        } else {
+            ({ row, plain, consumed } = renderTenPull(path, i));
+        }
+        pathRows.push(row);
+        plainText += plain + "\n";
+        i += consumed;
+    }
+    return { plainText, pathRows };
+}
+
+function renderConsecutiveSingles(path, startIndex) {
+    let j = startIndex;
+    const itemsHtml = [], itemsPlain = [];
+    while (j < path.length && path[j].type === 'single') {
+        itemsHtml.push(getColoredItemHtml(path[j].item));
+        itemsPlain.push(path[j].item);
+        j++;
+    }
+    const count = j - startIndex;
+    const addr = path[startIndex].addr;
+    const header = `<span style="color: #007bff; font-weight: bold;">[単発]</span> ${count}ロール (${addr}～):<br>`;
+    const html = "　=> " + itemsHtml.join('、');
+    const plain = `[単発] ${count}ロール (${addr}～) => ` + itemsPlain.join('、');
+    
+    return { row: createResultRow(header + html), plain, consumed: count };
+}
+
+function renderTenPull(path, index) {
+    const pull = path[index];
+    const header = `<span style="color: #c0a000; font-weight: bold;">[10連]</span> (${pull.addr}～):<br>`;
+    const html = "　=> " + pull.items.map(getColoredItemHtml).join('、');
+    const plain = `[10連] (${pull.addr}～) => ` + pull.items.join('、');
+
+    return { row: createResultRow(header + html), plain, consumed: 1 };
+}
+
+function createResultRow(innerHTML) {
+    const rowContainer = createStyledElement('div', {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '6px',
+        alignItems: 'flex-start'
+    });
+
+    const checkbox = createStyledElement('input', {
+        marginTop: '3px',
+        cursor: 'pointer'
+    }, { type: 'checkbox' });
+
+    const span = createStyledElement('span', { lineHeight: '1.4' }, { innerHTML });
+
+    checkbox.onchange = () => {
+        span.style.color = checkbox.checked ? '#aaa' : '#333';
+        span.style.textDecoration = checkbox.checked ? 'line-through' : 'none';
+    };
+    
+    rowContainer.append(checkbox, span);
+    return rowContainer;
+}
+
+function getColoredItemHtml(name) {
+    const item = Object.values(itemMaster).find(it => it.name === name);
+    if (!item) return name;
+
+    if (item.rarity === 3) return `<span style="color: #d9534f; font-weight: bold;">${name}</span>`;
+    if (item.rarity === 4) return `<span style="color: #0000ff; font-weight: bold;">${name}</span>`;
+    return name;
+}
+
+====================
+FILE: view-simulation-main.js
+====================
+/**
+ * 担当: シミュレーションの全体統括
+ */
+
+function initializeSimulationView(gacha) {
+    const simContainer = document.getElementById('sim-ui-container');
+    if (!simContainer) return;
+
+    simContainer.innerHTML = '';
+    simContainer.dataset.initialized = 'true';
+
+    const simGroup = createSimUIGroup(gacha);
+    const resultDisplay = createResultDisplay();
+
+    simContainer.append(simGroup, resultDisplay);
+
+    document.getElementById('runSimBtn').onclick = runSimulation;
+    document.getElementById('copySimResultBtn').onclick = copySimResult;
+
+    createLayerUI(gacha, 1);
+}
+
+function getSimulationParams() {
+    const tickets = parseInt(document.getElementById('simTicketInput').value);
+    if (isNaN(tickets) || tickets <= 0) {
+        alert("チケット枚数を正しく入力してください。");
+        return null;
+    }
+
+    const layers = document.querySelectorAll('.layer-selection-area');
+    const targetLayers = Array.from(layers).map(area => {
+        const checked = area.querySelectorAll('.layer-target-checkbox:checked');
+        return Array.from(new Set(Array.from(checked).map(cb => parseInt(cb.value))));
+    });
+
+    return { tickets, targetLayers };
+}
+
+function runSimulation() {
+    if (!viewData.calculatedData) {
+        alert("表示データがありません。まず「更新」ボタンを押してください。");
+        return;
+    }
+    
+    const params = getSimulationParams();
+    if (!params) return;
+
+    const { Nodes, thresholds } = viewData.calculatedData;
+    const { gacha, initialLastRollId } = viewData;
+    const initialNg = new URLSearchParams(window.location.search).get('ng') || 'none';
+
+    const result = runGachaSearch(
+        Nodes, initialLastRollId, params.tickets, gacha, 
+        thresholds, initialNg, params.targetLayers
+    );
+    
+    displaySimulationResult(result);
+}
+
+function copySimResult() {
+    if (!window.lastSimText || !navigator.clipboard) {
+        alert("コピーする結果がありません。先にシミュレーションを実行してください。");
+        return;
+    }
+    navigator.clipboard.writeText(window.lastSimText).then(() => {
+        const btn = document.getElementById('copySimResultBtn');
+        const originalText = btn.textContent;
+        btn.textContent = 'コピー完了！';
+        btn.style.backgroundColor = '#28a745';
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.backgroundColor = '#6c757d';
+        }, 1500);
+    });
 }
 
