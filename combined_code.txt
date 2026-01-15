@@ -771,15 +771,18 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
     const hasValidLayers = targetLayers && targetLayers.some(layer => Array.isArray(layer) && layer.length > 0);
     const effectiveLayers = hasValidLayers ? targetLayers : [];
 
+    const BEAM_WIDTH = 2000; // ビーム幅
+
     // dp[t] はチケットを t 枚消費した時点での状態を保持するMap
     const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
 
     // 初期状態 (チケット0枚)
-    dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
+    const initialLayerCounts = new Array(effectiveLayers.length).fill(0);
+    dp[0].set(`1_${initialLastRollId}_${initialNg}_${initialLayerCounts.join('-')}`, {
         nodeIdx: 1,
         lastId: initialLastRollId,
         currentNg: initialNg,
-        layerCounts: new Array(effectiveLayers.length).fill(0),
+        layerCounts: initialLayerCounts,
         ubers: 0,
         legends: 0,
         path: [],
@@ -794,15 +797,16 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
      */
     const calculateScore = (state) => {
         let score = 0;
-        // 有効なターゲットレイヤーがある場合のみ、そのスコアを加算
+        // ターゲットレイヤーのスコアを最優先
         if (hasValidLayers) {
             for (let i = 0; i < state.layerCounts.length; i++) {
-                score += state.layerCounts[i] * Math.pow(50, effectiveLayers.length - i);
+                // 第1優先を100,000点、以降の優先度は1/10ずつ価値を落とす
+                score += state.layerCounts[i] * (100000 / Math.pow(10, i));
             }
         }
-        // 超激レア・伝説レアにも高い価値を与える
-        score += state.ubers * 100;
-        score += state.legends * 5000;
+        // 副産物としての超激レア・伝説レアのスコアは相対的に低くする
+        score += state.ubers * 1;
+        score += state.legends * 10;
 
         return score;
     };
@@ -810,7 +814,18 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
     for (let t = 0; t < totalTickets; t++) {
         if (!dp[t] || dp[t].size === 0) continue;
 
-        // ビームサーチの絞り込みをせず、全状態を探索する
+        // ビームサーチによる絞り込み: スコア上位 `BEAM_WIDTH` 件のみを保持する
+        if (dp[t].size > BEAM_WIDTH) {
+            const sortedStates = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a));
+            const newDp = new Map();
+            for (let i = 0; i < Math.min(sortedStates.length, BEAM_WIDTH); i++) {
+                const state = sortedStates[i];
+                const key = `${state.nodeIdx}_${state.lastId}_${state.currentNg}_${state.layerCounts.join('-')}`;
+                newDp.set(key, state);
+            }
+            dp[t] = newDp;
+        }
+
         const states = Array.from(dp[t].values());
 
         for (const state of states) {
@@ -822,7 +837,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                     // 有効なターゲットがある場合のみカウント
                     if (hasValidLayers) {
                         const item = resS.items[0];
-                        effectiveLayers.forEach((ids, idx) => { if (ids.includes(item.itemId)) newLayerCounts[idx]++; });
+                        effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) newLayerCounts[idx]++; });
                     }
                     
                     const nextState = {
@@ -837,7 +852,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                         tickets: t + 1
                     };
                     
-                    const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}`;
+                    const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}_${nextState.layerCounts.join('-')}`;
                     const existing = dp[t + 1].get(key);
                     if (!existing || calculateScore(existing) < calculateScore(nextState)) {
                         dp[t + 1].set(key, nextState);
@@ -857,7 +872,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                     resTen.items.forEach(item => {
                         // 有効なターゲットがある場合のみカウント
                         if (hasValidLayers) {
-                            effectiveLayers.forEach((ids, idx) => { if (ids.includes(item.itemId)) addLayer[idx]++; });
+                            effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) addLayer[idx]++; });
                         }
                         if (item.rarity === 3) ubers++;
                         if (item.rarity === 4) legends++;
@@ -876,7 +891,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                         tickets: t + 10
                     };
 
-                    const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}`;
+                    const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}_${nextStateTen.layerCounts.join('-')}`;
                     const existingTen = dp[t + 10].get(keyTen);
                     if (!existingTen || calculateScore(existingTen) < calculateScore(nextStateTen)) {
                         dp[t + 10].set(keyTen, nextStateTen);

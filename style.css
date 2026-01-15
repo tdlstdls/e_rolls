@@ -294,3 +294,8 @@ th {
 #sim-ui-group {
     margin-bottom: 15px;
 }
+
+/* シミュレーションルートのハイライト */
+.route-highlight {
+    background-color: #FFA500 !important; /* オレンジ色 */
+}
