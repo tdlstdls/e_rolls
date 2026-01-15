@@ -221,6 +221,12 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
             if (t + 1 <= totalTickets) {
                 const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resS) {
+                    const consumedAddrs = [];
+                    for (let i = 0; i < resS.useSeeds; i++) {
+                        const n = Nodes[state.nodeIdx - 1 + i];
+                        if (n) consumedAddrs.push(n.address);
+                    }
+
                     const newLayerCounts = [...state.layerCounts];
                     // 有効なターゲットがある場合のみカウント
                     if (hasValidLayers) {
@@ -235,7 +241,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                         layerCounts: newLayerCounts,
                         ubers: state.ubers + (resS.items[0].rarity === 3 ? 1 : 0),
                         legends: state.legends + (resS.items[0].rarity === 4 ? 1 : 0),
-                        path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.items[0].itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
+                        path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.items[0].itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?', consumed: consumedAddrs }),
                         rollCount: state.rollCount + 1,
                         tickets: t + 1
                     };
@@ -252,6 +258,12 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
             if (t + 10 <= totalTickets) {
                 const resTen = simulateTenRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resTen) {
+                    const consumedAddrs = [];
+                    for (let i = 0; i < resTen.useSeeds; i++) {
+                        const n = Nodes[state.nodeIdx - 1 + i];
+                        if (n) consumedAddrs.push(n.address);
+                    }
+
                     const addLayer = new Array(effectiveLayers.length).fill(0);
                     let ubers = 0;
                     let legends = 0;
@@ -274,7 +286,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                         layerCounts: state.layerCounts.map((c, idx) => c + addLayer[idx]),
                         ubers: state.ubers + ubers,
                         legends: state.legends + legends,
-                        path: state.path.concat({ type: 'ten', items: itemNames, addr: Nodes[state.nodeIdx - 1]?.address || '?' }),
+                        path: state.path.concat({ type: 'ten', items: itemNames, addr: Nodes[state.nodeIdx - 1]?.address || '?', consumed: consumedAddrs }),
                         rollCount: state.rollCount + 10,
                         tickets: t + 10
                     };

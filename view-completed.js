@@ -2,7 +2,7 @@
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
  */
 
-let viewData = {
+window.viewData = {
     calculatedData: null,
     gacha: null,
     initialLastRollId: null,
@@ -86,6 +86,12 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             const info = highlightInfo.get(addr);
             
             let cls = determineHighlightClass(info);
+
+            // 最適ルートのハイライト処理
+            if (viewData.highlightedRoute && viewData.highlightedRoute.includes(node.address)) {
+                cls = cls ? `${cls} route-highlight` : 'route-highlight';
+            }
+
             const isPartnerRR = (node.reRollFlag || node.reRerollFlag);
 
             let linkSeeds = {
