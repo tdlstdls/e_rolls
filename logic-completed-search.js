@@ -21,11 +21,7 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes, 
         const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
         let finalId = node.itemId;
         if (isRR) {
-            const pool = gacha.rarityItems[node.rarityId] || [];
-            const filtered = pool.filter(id => id !== node.itemId);
-            if (filtered.length > 0) {
-                finalId = filtered[node.seed3 % Math.max(1, filtered.length)];
-            }
+            finalId = node.reRollItemId;
         }
         const nextNg = (currentNg <= 1) ? gCycle : currentNg - 1;
         return { itemId: finalId, useSeeds: isRR ? 3 : 2, rarity: itemMaster[finalId]?.rarity || 0, nextNg };
