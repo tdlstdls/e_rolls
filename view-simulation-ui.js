@@ -1,6 +1,6 @@
 /**
  * 担当: シミュレーションUIの基本要素の生成
- * 修正: 階層（Layer）選択機能を削除し、チケット入力と実行ボタンのみに簡素化
+ * 修正: 階層選択UIの削除、およびハイライト切替ボタンの追加
  */
 
 /**
@@ -20,29 +20,32 @@ function createStyledElement(tag, styles = {}, properties = {}) {
 }
 
 /**
- * 上部のコントロール行（チケット入力、開始・コピーボタン）を生成
+ * コントロール行（チケット入力、実行、コピー、ハイライト切替ボタン）を生成
  */
 function createControlRow() {
     const row = createStyledElement('div', {
         display: 'flex',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '15px',
-        marginBottom: '0px' // 階層がなくなったため余白を調整
+        gap: '12px',
+        marginBottom: '0px'
     });
 
     row.innerHTML = `
         <div style="display: flex; align-items: center; gap: 8px;">
-            <label style="font-size: 0.85rem; font-weight: bold; color: #555;">使用チケット枚数:</label>
+            <label style="font-size: 0.85rem; font-weight: bold; color: #555;">チケット:</label>
             <input type="number" id="simTicketInput" value="30" min="1" max="1000" 
-                   style="width: 70px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;">
+                   style="width: 65px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;">
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button id="runSimBtn" class="sim-btn" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
                 シミュレーション開始
             </button>
-            <button id="copySimResultBtn" class="sim-btn" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+            <button id="copySimResultBtn" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
                 結果をコピー
+            </button>
+            <button id="toggleHighlightBtn" style="background-color: #007bff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+                ハイライト: ON
             </button>
         </div>
     `;
@@ -79,7 +82,7 @@ function createSimUIGroup(gacha) {
         marginTop: '10px'
     }, { id: 'sim-ui-group' });
 
-    // コントロール行のみを追加（LayersContainerとAddLayerBtnは削除）
+    // ボタン類を含むメイン行のみを追加
     const controlRow = createControlRow();
     group.append(controlRow);
     

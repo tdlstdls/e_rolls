@@ -1,13 +1,19 @@
 /**
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
+ * 修正: セル単位の精密ハイライト、およびシミュレーション表示モードのトグル対応
  */
 
 window.viewData = {
     calculatedData: null,
     gacha: null,
     initialLastRollId: null,
+    highlightedRoute: [], // シミュレーションで算出されたセル番地リスト
+    showSimHighlight: true // シミュレーションハイライトを表示するかどうかのフラグ
 };
 
+/**
+ * 計算詳細ポップアップの表示
+ */
 function showCalculationPopup(nodeIndex, isGuaranteed, linkSeeds) {
     if (nodeIndex === undefined || viewData.calculatedData === null) return;
     const node = viewData.calculatedData.Nodes[nodeIndex];
@@ -24,6 +30,9 @@ function showCalculationPopup(nodeIndex, isGuaranteed, linkSeeds) {
     popupOverlay.style.display = 'flex';
 }
 
+/**
+ * ポップアップ操作のハンドラ設定
+ */
 function setupPopupHandlers() {
     const popupOverlay = document.getElementById('seed-popup-overlay');
     const closeBtn = document.querySelector('.popup-close-btn');
@@ -55,8 +64,13 @@ function setupPopupHandlers() {
     }
 }
 
+/**
+ * メインテーブルの生成と表示
+ */
 function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params, initialNg) {
     setupPopupHandlers();
+    
+    // データ計算の実行
     const { Nodes, highlightInfo } = calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, initialNg);
 
     viewData.calculatedData = { Nodes, highlightInfo, thresholds };
@@ -65,6 +79,8 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
 
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const currentParams = new URLSearchParams(window.location.search);
+    
+    // テーブル開始
     let table = `<table style="table-layout: fixed;" class="${currentHighlightMode === 'single' ? 'mode-single' : (currentHighlightMode === 'multi' ? 'mode-multi' : '')}">`;
     table += '<thead>';
     const header = (displaySeed === '1') 
@@ -85,15 +101,18 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             const addr = node.address + (isGuar ? 'G' : '');
             const info = highlightInfo.get(addr);
             
-            let cls = determineHighlightClass(info);
-
-            // 最適ルートのハイライト処理
-            if (viewData.highlightedRoute && viewData.highlightedRoute.includes(node.address)) {
-                cls = cls ? `${cls} route-highlight` : 'route-highlight';
+            let cls = '';
+            
+            // ハイライトモードの判定
+            if (viewData.showSimHighlight && viewData.highlightedRoute && viewData.highlightedRoute.includes(addr)) {
+                // シミュレーションハイライトが有効かつ、ルートに含まれるセルならオレンジ
+                cls = 'route-highlight';
+            } else {
+                // それ以外は通常のルートハイライト（青/黄/緑）を表示
+                cls = determineHighlightClass(info);
             }
 
             const isPartnerRR = (node.reRollFlag || node.reRerollFlag);
-
             let linkSeeds = {
                 normal: node.seed2, 
                 reroll: isPartnerRR ? node.seed3 : null, 
@@ -117,6 +136,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             let displayHtml = '---';
             if (node.itemId !== -1) {
                 if (displaySeed === '1') {
+                    // SEED表示モード時のセル内HTML生成
                     const buildStaticItemDisplay = (isGuaranteedColumn) => {
                         if (isGuaranteedColumn) {
                             const base = getFmt(node.itemGId, true);
@@ -138,6 +158,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                     const json = JSON.stringify(linkSeeds).replace(/"/g, '&quot;');
                     displayHtml = `<a href="#" onclick="showCalculationPopup(${node.index - 1}, ${isGuar}, ${json}); return false;">${nameHtml}</a>`;
                 } else {
+                    // SEED非表示モード時のリンク生成
                     if (isGuar) {
                         const baseName = getFmt(node.itemGId, true);
                         if (isPartnerRR) {
@@ -164,8 +185,10 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             return { html: `<td class="${cls || ''}">${displayHtml}</td>` };
         };
 
-        const cA = renderCell(nodeA, false); const cAG = renderCell(nodeA, true);
-        const cB = renderCell(nodeB, false); const cBG = renderCell(nodeB, true);
+        const cA = renderCell(nodeA, false); 
+        const cAG = renderCell(nodeA, true);
+        const cB = renderCell(nodeB, false);
+        const cBG = renderCell(nodeB, true);
 
         if (displaySeed === '1') {
             table += `<td class="col-seed">${nodeA.seed1} [${nodeA.index}]</td>${cA.html}${cAG.html}<td class="col-seed">${nodeB.seed1} [${nodeB.index}]</td>${cB.html}${cBG.html}`;

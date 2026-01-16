@@ -1,6 +1,6 @@
 /**
  * 担当: 最適ルート探索（ビームサーチ）のコアロジック
- * 修正: アイテム個別選択を廃止し、超激レア > 伝説レアの順で最大化するロジックに変更
+ * 修正: ハイライト対象をセル単位(A/AG等)で特定するためのアドレス生成ロジックを追加
  */
 
 /**
@@ -18,7 +18,8 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             items: [{itemId: node.itemGId, rarity: itemMaster[node.itemGId]?.rarity || 0}], 
             useSeeds: 2, 
             nextLastId: node.itemGId, 
-            nextNg: gCycle 
+            nextNg: gCycle,
+            cellAddr: node.address + 'G' // 確定枠アドレス
         };
     } else {
         const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === lastId;
@@ -32,7 +33,8 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             items: [{itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0}], 
             useSeeds, 
             nextLastId: finalId, 
-            nextNg 
+            nextNg,
+            cellAddr: node.address // 通常枠アドレス
         };
     }
 }
@@ -42,6 +44,10 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
  */
 function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     const gCycle = gacha.guaranteedCycle || 30;
+    const uRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 500) : 0;
+    const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
+    const gDiv = uRate + lRate;
+
     let guaranteedRollIndex = -1;
     if (!isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && currentNg <= 10 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
         guaranteedRollIndex = currentNg - 1;
@@ -49,7 +55,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
 
     let guaranteedRarityId = null;
     let raritySeedConsumed = 0;
-    if (guaranteedRollIndex !== -1) {
+    if (guaranteedRollIndex !== -1 && gDiv > 0) {
         const rarityNode = Nodes[startIdx - 1];
         if (!rarityNode) return null;
         guaranteedRarityId = rarityNode.rarityGId;
@@ -59,6 +65,9 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     const rollInfos = [];
     let currentSeedIdx = startIdx + raritySeedConsumed;
     let tempLastId = lastId;
+    
+    // トラック判定 (A列を含むかB列を含むか)
+    let currentTrack = Nodes[currentSeedIdx - 1]?.address.includes('A') ? 'A' : 'B';
 
     for (let i = 0; i < 10; i++) {
         if (i === guaranteedRollIndex) {
@@ -67,13 +76,22 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
         }
         const node = Nodes[currentSeedIdx - 1];
         if (!node) return null;
+        
         const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === tempLastId;
         const useSeeds = isRR ? 3 : 2;
         let finalId = node.itemId;
         if (isRR && node.reRollItemId !== undefined) {
             finalId = node.reRollItemId;
         }
-        rollInfos.push({ type: 'normal', seed: currentSeedIdx, use: useSeeds, itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0 });
+
+        rollInfos.push({ 
+            type: 'normal', 
+            seed: currentSeedIdx, 
+            use: useSeeds, 
+            itemId: finalId, 
+            rarity: itemMaster[finalId]?.rarity || 0,
+            cellAddr: node.address.replace(/[AB]/, currentTrack)
+        });
         currentSeedIdx += useSeeds;
         tempLastId = finalId;
     }
@@ -84,15 +102,28 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
         const poolG = gacha.rarityItems[guaranteedRarityId] || [];
         const slotG = slotNode.seed1 % Math.max(1, poolG.length);
         const itemIdG = poolG[slotG];
-        rollInfos[guaranteedRollIndex] = { type: 'guaranteed', seed: currentSeedIdx, use: 1, itemId: itemIdG, rarity: itemMaster[itemIdG]?.rarity || 0 };
+        
+        // 確定枠のトラックは直前ロールの反対側
+        const oppositeTrack = (currentTrack === 'A' ? 'B' : 'A');
+        
+        rollInfos[guaranteedRollIndex] = { 
+            type: 'guaranteed', 
+            seed: currentSeedIdx, 
+            use: 1, 
+            itemId: itemIdG, 
+            rarity: itemMaster[itemIdG]?.rarity || 0,
+            cellAddr: slotNode.address.replace(/[AB]/, oppositeTrack) + 'G'
+        };
         currentSeedIdx += 1;
     }
 
     const items = [];
+    const cellAddrs = [];
     let nextLastId = lastId;
     for (let i = 0; i < 10; i++) {
         const roll = rollInfos[i];
         items.push({ itemId: roll.itemId, rarity: roll.rarity });
+        cellAddrs.push(roll.cellAddr);
         nextLastId = roll.itemId;
     }
     
@@ -104,7 +135,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     }
 
     const totalSeedsConsumed = currentSeedIdx - startIdx;
-    return { items, useSeeds: totalSeedsConsumed, nextLastId, nextNg };
+    return { items, useSeeds: totalSeedsConsumed, nextLastId, nextNg, cellAddrs };
 }
 
 /**
@@ -137,7 +168,6 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
     const BEAM_WIDTH = 1000; 
     const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
 
-    // 初期状態
     dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
         nodeIdx: 1,
         lastId: initialLastRollId,
@@ -149,19 +179,13 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
         tickets: 0
     });
 
-    /**
-     * スコア関数: 超激レア(Rarity 3) > 伝説レア(Rarity 4) の優先順位
-     */
     const calculateScore = (state) => {
-        // 超激レア1体につき10000点、伝説レア1体につき1000点
-        // これにより超激レアの数が多いルートが最優先される
         return (state.ubers * 10000) + (state.legends * 1000);
     };
 
     for (let t = 0; t <= totalTickets; t++) {
         if (!dp[t] || dp[t].size === 0) continue;
 
-        // ビーム幅で制限
         if (dp[t].size > BEAM_WIDTH) {
             const sortedStates = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a));
             const newDp = new Map();
@@ -179,12 +203,6 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
             if (t + 1 <= totalTickets) {
                 const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resS) {
-                    const consumedAddrs = [];
-                    for (let i = 0; i < resS.useSeeds; i++) {
-                        const n = Nodes[state.nodeIdx - 1 + i];
-                        if (n) consumedAddrs.push(n.address);
-                    }
-                    
                     const nextState = {
                         nodeIdx: state.nodeIdx + resS.useSeeds,
                         lastId: resS.nextLastId,
@@ -195,7 +213,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             type: 'single', 
                             item: getItemNameSafe(resS.items[0].itemId), 
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            consumed: consumedAddrs 
+                            targetCell: resS.cellAddr // ハイライト対象を保存
                         }),
                         rollCount: state.rollCount + 1,
                         tickets: t + 1
@@ -212,12 +230,6 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
             if (t + 10 <= totalTickets) {
                 const resTen = simulateTenRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resTen) {
-                    const consumedAddrs = [];
-                    for (let i = 0; i < resTen.useSeeds; i++) {
-                        const n = Nodes[state.nodeIdx - 1 + i];
-                        if (n) consumedAddrs.push(n.address);
-                    }
-
                     let ubers = 0;
                     let legends = 0;
                     let itemNames = [];
@@ -237,7 +249,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             type: 'ten', 
                             items: itemNames, 
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            consumed: consumedAddrs 
+                            targetCells: resTen.cellAddrs // ハイライト対象(10個分)を保存
                         }),
                         rollCount: state.rollCount + 10,
                         tickets: t + 10
