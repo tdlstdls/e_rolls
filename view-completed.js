@@ -1,13 +1,13 @@
 /**
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
- * 修正: セル単位の精密ハイライト、およびシミュレーション表示モードのトグル対応
+ * 修正: セル単位の精密ハイライト（A/B vs AG/BG）およびトグル表示モードへの対応
  */
 
 window.viewData = {
     calculatedData: null,
     gacha: null,
     initialLastRollId: null,
-    highlightedRoute: [], // シミュレーションで算出されたセル番地リスト
+    highlightedRoute: [], // シミュレーションで算出された精密なセル番地リスト
     showSimHighlight: true // シミュレーションハイライトを表示するかどうかのフラグ
 };
 
@@ -98,17 +98,18 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
         table += `<tr><td class="col-no">${r}</td>`;
 
         const renderCell = (node, isGuar) => {
+            // セル単位の完全なアドレスを生成 (例: "A1" または "A1G")
             const addr = node.address + (isGuar ? 'G' : '');
             const info = highlightInfo.get(addr);
             
             let cls = '';
             
-            // ハイライトモードの判定
+            // ハイライト表示の優先順位判定
+            // 1. シミュレーションハイライト(オレンジ)が有効で、ルートに含まれる場合
             if (viewData.showSimHighlight && viewData.highlightedRoute && viewData.highlightedRoute.includes(addr)) {
-                // シミュレーションハイライトが有効かつ、ルートに含まれるセルならオレンジ
                 cls = 'route-highlight';
             } else {
-                // それ以外は通常のルートハイライト（青/黄/緑）を表示
+                // 2. それ以外、またはシミュレーション非表示時は通常のルート(青/黄/緑)を表示
                 cls = determineHighlightClass(info);
             }
 
@@ -136,7 +137,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             let displayHtml = '---';
             if (node.itemId !== -1) {
                 if (displaySeed === '1') {
-                    // SEED表示モード時のセル内HTML生成
+                    // SEED表示モード
                     const buildStaticItemDisplay = (isGuaranteedColumn) => {
                         if (isGuaranteedColumn) {
                             const base = getFmt(node.itemGId, true);
@@ -158,7 +159,7 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                     const json = JSON.stringify(linkSeeds).replace(/"/g, '&quot;');
                     displayHtml = `<a href="#" onclick="showCalculationPopup(${node.index - 1}, ${isGuar}, ${json}); return false;">${nameHtml}</a>`;
                 } else {
-                    // SEED非表示モード時のリンク生成
+                    // SEED非表示モード (リンク生成)
                     if (isGuar) {
                         const baseName = getFmt(node.itemGId, true);
                         if (isPartnerRR) {

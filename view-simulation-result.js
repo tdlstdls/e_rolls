@@ -1,6 +1,6 @@
 /**
  * 担当: シミュレーション結果の表示
- * 修正: 優先順位（超激レア > 伝説レア）に基づいた獲得数表示の簡素化
+ * 修正: 「(確定)」「(被り)」ラベルの表示対応、および表示優先順位の調整
  */
 
 /**
@@ -82,8 +82,13 @@ function renderConsecutiveSingles(path, startIndex) {
     const itemsHtml = [], itemsPlain = [];
     
     while (j < path.length && path[j].type === 'single') {
-        itemsHtml.push(getColoredItemHtml(path[j].item));
-        itemsPlain.push(path[j].item);
+        const step = path[j];
+        let label = "";
+        if (step.isGuaranteed) label += " (確定)";
+        if (step.isReroll) label += " (被り)";
+
+        itemsHtml.push(getColoredItemHtml(step.item) + label);
+        itemsPlain.push(step.item + label);
         j++;
     }
     
@@ -102,8 +107,24 @@ function renderConsecutiveSingles(path, startIndex) {
 function renderTenPull(path, index) {
     const pull = path[index];
     const header = `<span style="color: #c0a000; font-weight: bold;">[10連]</span> (${pull.addr}～):<br>`;
-    const html = "　=> " + pull.items.map(getColoredItemHtml).join('、');
-    const plain = `[10連] (${pull.addr}～) => ` + pull.items.join('、');
+    
+    // pull.items は {name, isGuaranteed, isReroll} の配列
+    const itemsHtml = pull.items.map(item => {
+        let label = "";
+        if (item.isGuaranteed) label += " (確定)";
+        if (item.isReroll) label += " (被り)";
+        return getColoredItemHtml(item.name) + label;
+    });
+
+    const itemsPlain = pull.items.map(item => {
+        let label = "";
+        if (item.isGuaranteed) label += " (確定)";
+        if (item.isReroll) label += " (被り)";
+        return item.name + label;
+    });
+
+    const html = "　=> " + itemsHtml.join('、');
+    const plain = `[10連] (${pull.addr}～) => ` + itemsPlain.join('、');
     
     return { row: createResultRow(header + html), plain, consumed: 1 };
 }
@@ -146,7 +167,6 @@ function createResultRow(innerHTML) {
  * アイテム名にレアリティに応じた色を付ける
  */
 function getColoredItemHtml(name) {
-    // itemMasterから名前で検索してレアリティを特定
     const item = Object.values(itemMaster).find(it => it.name === name);
     if (!item) return name;
 
