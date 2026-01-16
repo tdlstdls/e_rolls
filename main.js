@@ -15,7 +15,6 @@ const DEFAULT_PARAMS = {
     displaySeed: '0',
     displaySim: '0' 
 };
-
 let currentHighlightMode = 'all'; 
 let activeGachaId;
 let forceRerollMode = false;
@@ -62,7 +61,6 @@ function runSimulationAndDisplay(options = {}) {
     // シミュレーション表示設定の反映
     const simContainer = document.getElementById('sim-ui-container');
     const toggleSimBtn = document.getElementById('toggleSimBtn');
-    
     if (p.displaySim === '1') {
         simContainer.style.display = 'block';
         toggleSimBtn.textContent = 'シミュレーションを非表示';
@@ -95,7 +93,6 @@ function runSimulationAndDisplay(options = {}) {
     const legendCommon = document.getElementById('legendCommon');
 
     populateFeaturedStockInput(p.gacha, p.fs);
-
     if (isComp) {
         stockControl.classList.add('hidden-control');
         if (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) {
@@ -152,7 +149,6 @@ function runSimulationAndDisplay(options = {}) {
         '3': gacha.rarityRates['0'] + gacha.rarityRates['1'] + gacha.rarityRates['2'] + gacha.rarityRates['3'],
         '4': 10000
     };
-
     if (isComp) {
         createAndDisplayCompletedSeedView(seedValue, gacha, rows, thresholds, lastRollId, p.displaySeed, new URLSearchParams(newQuery), p.ng);
     } else {
@@ -239,13 +235,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const current = params.get('displaySeed') === '1' ? '0' : '1';
         runSimulationAndDisplay({ uiOverrides: { displaySeed: current } });
     });
-
     document.getElementById('toggleSimBtn').addEventListener('click', () => {
         const params = new URLSearchParams(window.location.search);
         const current = params.get('displaySim') === '1' ? '0' : '1';
         runSimulationAndDisplay({ uiOverrides: { displaySim: current } });
     });
-
     document.getElementById('copySeedLink').addEventListener('click', (event) => {
         event.preventDefault();
         const seedToCopy = new URLSearchParams(window.location.search).get('seed');
@@ -257,10 +251,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
-
+    
+    // 強制再抽選トグルのイベント（テーブル内の#セルをクリックした際の処理）
     document.getElementById('result-table-container').addEventListener('click', (event) => {
         if (event.target.id === 'forceRerollToggle') {
             window.forceRerollMode = !window.forceRerollMode;
+            // 状態を反転させてからシミュレーションを再実行
             runSimulationAndDisplay();
         }
     });
@@ -269,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         toggleSeedInput();
     });
-
     // ハイライトモードの適用
     const applyHighlightMode = () => {
          const table = document.querySelector('#result-table-container table');
@@ -278,21 +273,18 @@ document.addEventListener('DOMContentLoaded', () => {
          if (currentHighlightMode === 'single') table.classList.add('mode-single');
          if (currentHighlightMode === 'multi') table.classList.add('mode-multi');
     };
-
     document.getElementById('legendSingle').addEventListener('click', () => {
         if (document.getElementById('featuredCompleteCheckbox').checked) {
             currentHighlightMode = (currentHighlightMode === 'single') ? 'all' : 'single';
             applyHighlightMode();
         }
     });
-
     document.getElementById('legendMulti').addEventListener('click', () => {
         if (document.getElementById('featuredCompleteCheckbox').checked) {
             currentHighlightMode = (currentHighlightMode === 'multi') ? 'all' : 'multi';
             applyHighlightMode();
         }
     });
-
     // 初回実行
     runSimulationAndDisplay();
 });

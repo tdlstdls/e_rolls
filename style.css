@@ -299,3 +299,27 @@ th {
 .route-highlight {
     background-color: #FFA500 !important; /* オレンジ色 */
 }
+
+/* シミュレーションルートのハイライト色分け */
+.route-highlight-single {
+    background-color: #FFE0B2 !important; /* 薄いオレンジ */
+}
+.route-highlight-ten-normal {
+    background-color: #FFA500 !important; /* 通常のオレンジ */
+}
+.route-highlight-ten-guar {
+    background-color: #E65100 !important; /* 濃いオレンジ */
+    color: white !important;
+}
+.route-highlight-ten-guar a {
+    color: white !important;
+}
+
+.sim-btn {
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
