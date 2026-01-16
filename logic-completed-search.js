@@ -1,7 +1,19 @@
 /**
  * 担当: 最適ルート探索（ビームサーチ）のコアロジック
- * 修正: 強制レア被りモード (window.forceRerollMode) をシミュレーションに反映
+ * 修正: NG管理を1ロールごとの完全線形デクリメント（0時にサイクル値へ置換）に統一
  */
+
+/**
+ * 次のNG値を算出する共通関数
+ */
+function getNextNgLinear(currentNg, rollCount, cycle) {
+    if (currentNg === 'none' || isNaN(currentNg)) return 'none';
+    let next = currentNg - rollCount;
+    while (next <= 0) {
+        next += cycle;
+    }
+    return next;
+}
 
 /**
  * 単発ガチャを1回シミュレートする
@@ -10,8 +22,13 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
     const node = Nodes[startIdx - 1];
     if (!node) return null;
 
-    const gCycle = gacha.guaranteedCycle || 30;
-    const isGuar = !isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (currentNg <= 1);
+    const gCycle = gacha.guaranteedCycle || 10;
+    // 線形管理において currentNg === 1 が確定ロール
+    const isGuar = (currentNg === 1) && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag);
+    
+    // 次のNG状態を算出
+    const nextNg = getNextNgLinear(currentNg, 1, gCycle);
+
     if (isGuar) {
         return { 
             items: [{
@@ -22,12 +39,11 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             }], 
             useSeeds: 2, 
             nextLastId: node.itemGId, 
-            nextNg: gCycle,
+            nextNg: nextNg,
             cellAddr: node.address + 'G',
-            hType: 'single' // 単発ハイライト
+            hType: 'single' 
         };
     } else {
-        // 通常の被り判定、または強制再抽選モードの適用
         const isMatch = (node.itemId === lastId);
         const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
 
@@ -36,7 +52,7 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             finalId = node.reRollItemId;
         }
         const useSeeds = isRR ? 3 : 2;
-        const nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 1);
+        
         return { 
             items: [{
                 itemId: finalId, 
@@ -46,9 +62,9 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             }], 
             useSeeds, 
             nextLastId: finalId, 
-            nextNg,
+            nextNg: nextNg,
             cellAddr: node.address,
-            hType: 'single' // 単発ハイライト
+            hType: 'single'
         };
     }
 }
@@ -57,13 +73,14 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
  * 10連ガチャを1回シミュレートする
  */
 function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
-    const gCycle = gacha.guaranteedCycle || 30;
+    const gCycle = gacha.guaranteedCycle || 10;
     const uRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 500) : 0;
     const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDiv = uRate + lRate;
 
+    // 10連中のどの位置に確定が来るかを特定
     let guaranteedRollIndex = -1;
-    if (!isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && currentNg <= 10 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
+    if (currentNg !== 'none' && currentNg >= 1 && currentNg <= 10) {
         guaranteedRollIndex = currentNg - 1;
     }
 
@@ -77,7 +94,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     }
 
     const items = [];
-    const cellData = []; // { addr, type } の配列
+    const cellData = []; 
     let ptr = startIdx + raritySeedConsumed;
     let tempLastId = lastId;
 
@@ -102,13 +119,11 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
             
             ptr += 1;
             tempLastId = itemIdG;
-            tNgTracker = gCycle;
         } else {
             const node = Nodes[ptr - 1];
             if (!node) return null;
 
             const isMatch = (node.itemId === tempLastId);
-            // 通常の被り判定、または強制再抽選モードの適用
             const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
 
             let finalId = node.itemId;
@@ -124,25 +139,20 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
             });
             
             cellData.push({ addr: node.address, type: hType });
-            
             const consumed = isRR ? 3 : 2;
             ptr += consumed;
             tempLastId = finalId;
         }
     }
     
-    let nextNg;
-    if (guaranteedRollIndex !== -1) {
-        nextNg = gCycle;
-    } else {
-        nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 10);
-    }
+    // 次のNGを算出 (10ロール分進める)
+    const nextNg = getNextNgLinear(currentNg, 10, gCycle);
 
     return { 
         items, 
         useSeeds: ptr - startIdx, 
         nextLastId: tempLastId, 
-        nextNg, 
+        nextNg: nextNg, 
         cellData 
     };
 }
@@ -175,16 +185,20 @@ function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
 function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg) {
     const BEAM_WIDTH = 1000;
     const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
-    dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
+    
+    const startNg = initialNg === 'none' ? 'none' : parseInt(initialNg, 10);
+
+    dp[0].set(`1_${initialLastRollId}_${startNg}`, {
         nodeIdx: 1,
         lastId: initialLastRollId,
-        currentNg: initialNg,
+        currentNg: startNg,
         ubers: 0,
         legends: 0,
         path: [],
         rollCount: 1,
         tickets: 0
     });
+    
     const calculateScore = (state) => {
         return (state.ubers * 10000) + (state.legends * 1000);
     };
@@ -204,7 +218,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
 
         const states = Array.from(dp[t].values());
         for (const state of states) {
-            // --- 単発ガチャ ---
+            // 単発
             if (t + 1 <= totalTickets) {
                 const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resS) {
@@ -221,7 +235,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             isGuaranteed: item.isGuaranteed,
                             isReroll: item.isReroll,
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            targetCell: { addr: resS.cellAddr, type: resS.hType } // 型付き情報を保存
+                            targetCell: { addr: resS.cellAddr, type: resS.hType }
                         }),
                         rollCount: state.rollCount + 1,
                         tickets: t + 1
@@ -234,7 +248,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                 }
             }
 
-            // --- 10連ガチャ ---
+            // 10連
             if (t + 10 <= totalTickets) {
                 const resTen = simulateTenRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resTen) {
@@ -252,8 +266,6 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                     });
                     const nextStateTen = {
                         nodeIdx: state.nodeIdx + resTen.useSeeds,
-                        lastId: state.nodeIdx + resTen.useSeeds, // ptrを正しく管理
-                        nodeIdx: state.nodeIdx + resTen.useSeeds,
                         lastId: resTen.nextLastId,
                         currentNg: resTen.nextNg,
                         ubers: state.ubers + ubers,
@@ -262,7 +274,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             type: 'ten', 
                             items: itemsData,
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            targetCells: resTen.cellData // 型付き情報の配列を保存
+                            targetCells: resTen.cellData 
                         }),
                         rollCount: state.rollCount + 10,
                         tickets: t + 10
@@ -276,6 +288,5 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
             }
         }
     }
-    
     return findBestBeamSearchResult(dp, totalTickets, calculateScore);
 }
