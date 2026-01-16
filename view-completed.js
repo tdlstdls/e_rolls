@@ -1,14 +1,14 @@
 /**
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
- * 修正: セル単位の精密ハイライト（A/B vs AG/BG）およびトグル表示モードへの対応
+ * 修正: シミュレーション結果の3色ハイライト（薄いオレンジ/オレンジ/濃いオレンジ）出し分けに対応
  */
 
 window.viewData = {
     calculatedData: null,
     gacha: null,
     initialLastRollId: null,
-    highlightedRoute: [], // シミュレーションで算出された精密なセル番地リスト
-    showSimHighlight: true // シミュレーションハイライトを表示するかどうかのフラグ
+    highlightedRoute: new Map(), // アドレス -> 種別のマップ
+    showSimHighlight: true 
 };
 
 /**
@@ -70,7 +70,6 @@ function setupPopupHandlers() {
 function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params, initialNg) {
     setupPopupHandlers();
     
-    // データ計算の実行
     const { Nodes, highlightInfo } = calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, initialNg);
 
     viewData.calculatedData = { Nodes, highlightInfo, thresholds };
@@ -80,7 +79,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const currentParams = new URLSearchParams(window.location.search);
     
-    // テーブル開始
     let table = `<table style="table-layout: fixed;" class="${currentHighlightMode === 'single' ? 'mode-single' : (currentHighlightMode === 'multi' ? 'mode-multi' : '')}">`;
     table += '<thead>';
     const header = (displaySeed === '1') 
@@ -98,18 +96,24 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
         table += `<tr><td class="col-no">${r}</td>`;
 
         const renderCell = (node, isGuar) => {
-            // セル単位の完全なアドレスを生成 (例: "A1" または "A1G")
             const addr = node.address + (isGuar ? 'G' : '');
             const info = highlightInfo.get(addr);
             
             let cls = '';
             
-            // ハイライト表示の優先順位判定
-            // 1. シミュレーションハイライト(オレンジ)が有効で、ルートに含まれる場合
-            if (viewData.showSimHighlight && viewData.highlightedRoute && viewData.highlightedRoute.includes(addr)) {
-                cls = 'route-highlight';
+            // --- シミュレーションハイライトの判定 ---
+            if (viewData.showSimHighlight && viewData.highlightedRoute instanceof Map && viewData.highlightedRoute.has(addr)) {
+                const hType = viewData.highlightedRoute.get(addr);
+                // 種別に応じて3つのCSSクラスを使い分け
+                if (hType === 'single') {
+                    cls = 'route-highlight-single';
+                } else if (hType === 'ten-normal') {
+                    cls = 'route-highlight-ten-normal';
+                } else if (hType === 'ten-guar') {
+                    cls = 'route-highlight-ten-guar';
+                }
             } else {
-                // 2. それ以外、またはシミュレーション非表示時は通常のルート(青/黄/緑)を表示
+                // 通常のルートハイライト表示（シミュレーションルート外、またはトグルOFF時）
                 cls = determineHighlightClass(info);
             }
 
@@ -137,7 +141,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             let displayHtml = '---';
             if (node.itemId !== -1) {
                 if (displaySeed === '1') {
-                    // SEED表示モード
                     const buildStaticItemDisplay = (isGuaranteedColumn) => {
                         if (isGuaranteedColumn) {
                             const base = getFmt(node.itemGId, true);
@@ -159,7 +162,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                     const json = JSON.stringify(linkSeeds).replace(/"/g, '&quot;');
                     displayHtml = `<a href="#" onclick="showCalculationPopup(${node.index - 1}, ${isGuar}, ${json}); return false;">${nameHtml}</a>`;
                 } else {
-                    // SEED非表示モード (リンク生成)
                     if (isGuar) {
                         const baseName = getFmt(node.itemGId, true);
                         if (isPartnerRR) {

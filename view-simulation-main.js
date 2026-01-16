@@ -1,6 +1,6 @@
 /**
  * 担当: シミュレーションの全体統括
- * 修正: ハイライトのトグル管理機能、およびセル単位の精密なルート保存ロジックを追加
+ * 修正: ハイライト情報を Map 形式（アドレス -> 種別）で保存するように変更
  */
 
 /**
@@ -10,7 +10,7 @@ function initializeSimulationView(gacha) {
     const simContainer = document.getElementById('sim-ui-container');
     if (!simContainer) return;
 
-    // 初期化フラグとハイライト表示フラグの設定
+    // ハイライト表示フラグの初期化
     if (viewData.showSimHighlight === undefined) {
         viewData.showSimHighlight = true; 
     }
@@ -77,17 +77,24 @@ function runSimulation() {
 
     // ルート情報を保存
     if (viewData) {
+        // Mapを使用して、どのアドレスにどの種類のハイライトを適用するかを保持
+        // キー: アドレス(例: "A1", "B22G"), 値: 種別(例: "single", "ten-normal", "ten-guar")
+        viewData.highlightedRoute = new Map();
+        
         if (result) {
-            // セル単位の精密なハイライト用アドレスを抽出
-            viewData.highlightedRoute = result.path.flatMap(p => {
-                if (p.type === 'single') return [p.targetCell];
-                if (p.type === 'ten') return p.targetCells;
-                return [];
+            result.path.forEach(p => {
+                if (p.type === 'single') {
+                    // targetCell: { addr, type }
+                    viewData.highlightedRoute.set(p.targetCell.addr, p.targetCell.type);
+                } else if (p.type === 'ten') {
+                    // targetCells: Array<{ addr, type }>
+                    p.targetCells.forEach(cell => {
+                        viewData.highlightedRoute.set(cell.addr, cell.type);
+                    });
+                }
             });
             // 結果が出たらハイライトを強制的にONにする
             viewData.showSimHighlight = true;
-        } else {
-            viewData.highlightedRoute = [];
         }
         
         updateHighlightButtonText();
@@ -98,7 +105,7 @@ function runSimulation() {
         }
     }
 
-    // 結果の表示
+    // 結果の表示 (view-simulation-result.js)
     if (typeof displaySimulationResult === 'function') {
         displaySimulationResult(result);
     }

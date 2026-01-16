@@ -1,6 +1,6 @@
 /**
  * 担当: 最適ルート探索（ビームサーチ）のコアロジック
- * 修正: ユーザー指定の10連シード消費順序（レアリティ先出し、スロット割り込み）への完全準拠
+ * 修正: ロール種別（単発/10連1-9/10連10回目）に応じたハイライト種別の付与
  */
 
 /**
@@ -24,7 +24,8 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             useSeeds: 2, 
             nextLastId: node.itemGId, 
             nextNg: gCycle,
-            cellAddr: node.address + 'G' // 確定枠はG列
+            cellAddr: node.address + 'G',
+            hType: 'single' // 単発ハイライト
         };
     } else {
         const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === lastId;
@@ -44,7 +45,8 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             useSeeds, 
             nextLastId: finalId, 
             nextNg,
-            cellAddr: node.address // 通常枠はAまたはB列
+            cellAddr: node.address,
+            hType: 'single' // 単発ハイライト
         };
     }
 }
@@ -58,13 +60,11 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDiv = uRate + lRate;
 
-    // 確定枠がこの10連の何番目(0-9)に来るか特定
     let guaranteedRollIndex = -1;
     if (!isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && currentNg <= 10 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
         guaranteedRollIndex = currentNg - 1;
     }
 
-    // 1. 確定枠の「レアリティ」をサイクル先頭のSeedから決定 (Seed[1]相当)
     let guaranteedRarityId = null;
     let raritySeedConsumed = 0;
     if (guaranteedRollIndex !== -1 && gDiv > 0) {
@@ -75,14 +75,15 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     }
 
     const items = [];
-    const cellAddrs = [];
-    let ptr = startIdx + raritySeedConsumed; // ロール用シードはSeed[2]から開始
+    const cellData = []; // { addr, type } の配列
+    let ptr = startIdx + raritySeedConsumed;
     let tempLastId = lastId;
 
-    // 2. 10回分のロールを実行
     for (let i = 0; i < 10; i++) {
+        // 10連の最後（i=9）かどうかでハイライト色を分ける
+        const hType = (i === 9) ? 'ten-guar' : 'ten-normal';
+
         if (i === guaranteedRollIndex) {
-            // --- 確定枠の処理 (Seed[n]をスロット判定に使用) ---
             const slotNode = Nodes[ptr - 1];
             if (!slotNode) return null;
             
@@ -97,13 +98,11 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
                 isReroll: false
             });
             
-            // 確定枠のハイライト：現在のptrが指すセルのG列をハイライト
-            cellAddrs.push(slotNode.address + 'G');
+            cellData.push({ addr: slotNode.address + 'G', type: hType });
             
-            ptr += 1; // 確定枠はスロット判定で1消費
+            ptr += 1;
             tempLastId = itemIdG;
         } else {
-            // --- 通常枠の処理 ---
             const node = Nodes[ptr - 1];
             if (!node) return null;
 
@@ -120,8 +119,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
                 isReroll: isRR
             });
             
-            // 通常枠のハイライト：レアリティ判定を行っているセル
-            cellAddrs.push(node.address);
+            cellData.push({ addr: node.address, type: hType });
             
             const consumed = isRR ? 3 : 2;
             ptr += consumed;
@@ -129,7 +127,6 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
         }
     }
     
-    // 3. 次の状態を算出
     let nextNg;
     if (guaranteedRollIndex !== -1) {
         nextNg = gCycle;
@@ -142,7 +139,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
         useSeeds: ptr - startIdx, 
         nextLastId: tempLastId, 
         nextNg, 
-        cellAddrs 
+        cellData 
     };
 }
 
@@ -170,7 +167,7 @@ function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
 }
 
 /**
- * 探索メイン関数 (ビームサーチ)
+ * 探索メイン関数
  */
 function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg) {
     const BEAM_WIDTH = 1000; 
@@ -224,7 +221,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             isGuaranteed: item.isGuaranteed,
                             isReroll: item.isReroll,
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            targetCell: resS.cellAddr 
+                            targetCell: { addr: resS.cellAddr, type: resS.hType } // 型付き情報を保存
                         }),
                         rollCount: state.rollCount + 1,
                         tickets: t + 1
@@ -264,7 +261,7 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             type: 'ten', 
                             items: itemsData,
                             addr: Nodes[state.nodeIdx - 1]?.address || '?', 
-                            targetCells: resTen.cellAddrs 
+                            targetCells: resTen.cellData // 型付き情報の配列を保存
                         }),
                         rollCount: state.rollCount + 10,
                         tickets: t + 10
