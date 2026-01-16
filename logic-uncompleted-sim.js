@@ -15,7 +15,6 @@ function calculateNormalRollResult(fullSeedArray, currentIndex, thresholds, last
     const sSlot = fullSeedArray[currentIndex + 1];
     
     if (sRarity === undefined || sSlot === undefined) return null;
-
     const rarityInfo = getRarityFromRoll(sRarity % 10000, thresholds);
     const pool = gachaMaster[window.activeGachaId]?.rarityItems[rarityInfo.id] || [];
     const poolSize = pool.length > 0 ? pool.length : 1;
@@ -30,7 +29,9 @@ function calculateNormalRollResult(fullSeedArray, currentIndex, thresholds, last
     let logStr = `S${currentIndex + 1}→${rarityInfo.name}, S${currentIndex + 2}→${itemName}`;
 
     // レア(ID:1)の被り再抽選
-    if (rarityInfo.id === 1 && itemId !== -1 && itemId === lastItemId) {
+    // 通常判定に加え、強制再抽選モード (window.forceRerollMode) がONの場合も再抽選を実行
+    const isDupe = (itemId !== -1 && itemId === lastItemId);
+    if (rarityInfo.id === 1 && (isDupe || window.forceRerollMode)) {
         const sReRoll = fullSeedArray[currentIndex + 2];
         if (sReRoll !== undefined) {
             const rePool = pool.filter(id => id !== itemId);
@@ -39,7 +40,7 @@ function calculateNormalRollResult(fullSeedArray, currentIndex, thresholds, last
                 preRerollName = itemName;
                 finalId = rePool[sReRoll % rePool.length];
                 finalName = getItemNameSafe(finalId);
-                logStr += ` [Dupe], S${currentIndex + 3}→${finalName}`;
+                logStr += ` [Reroll], S${currentIndex + 3}→${finalName}`;
                 consumed = 3;
             }
         }
@@ -102,7 +103,6 @@ function calculateTenPullDetailedLogic(fullSeedArray, gacha, thresholds, ngVal, 
 
         const fRes = featuredResults[featuredIdxPtr++];
         if (!fRes) break;
-
         if (fRes.isFeatured) {
             results.push({ label, name: '目玉', isGuaranteed: false, isFeatured: true, isReroll: false, preRerollName: null });
             processLog.push(`${label}: Featured (by S${fRes.seedIndex})`);
@@ -142,7 +142,6 @@ function calculateTenPullsOverCycles(initialFullSeedArray, gacha, thresholds, in
         if (currentSeedArray.length < 1) break;
         const res = calculateTenPullDetailedLogic(currentSeedArray.slice(0, 40), gacha, thresholds, currentNgVal, currentLastRollId, getAddress);
         cycleResults.push({ cycle: c, ...res, startNgVal: currentNgVal, startLastRollId: currentLastRollId });
-
         currentSeedArray = currentSeedArray.slice(res.transition.consumedCount);
         currentLastRollId = res.transition.lastItemId;
         if (!isNaN(currentNgVal)) {
@@ -166,7 +165,6 @@ function simulateSingleRollsAndGetState(n, seedArray, initialNg, initialLastRoll
         if (currentSeedIndex >= seedArray.length) break;
         const isFeatured = (seedArray[currentSeedIndex] % 10000) < gacha.featuredItemRate;
         const isGuaranteedRoll = (currentNg === 1);
-
         if (isGuaranteedRoll || isFeatured) {
             currentSeedIndex += 1;
             currentNg = isGuaranteedRoll ? guaranteedCycle : (currentNg - 1 || guaranteedCycle);

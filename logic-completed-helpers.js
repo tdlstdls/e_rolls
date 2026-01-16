@@ -12,8 +12,7 @@ function initializeNodes(SEED_LIST, maxNodeIndex, gacha, thresholds) {
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const uFlag = gacha.uberGuaranteedFlag;
     const lFlag = gacha.legendGuaranteedFlag;
-    const uRate = uFlag ?
-        (gacha.rarityRates['3'] || 500) : 0;
+    const uRate = uFlag ? (gacha.rarityRates['3'] || 500) : 0;
     const lRate = lFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDivisor = uRate + lRate;
 
@@ -59,16 +58,19 @@ function initializeNodes(SEED_LIST, maxNodeIndex, gacha, thresholds) {
 
 /**
  * 基本的なレア被り判定
- * 1行目(index 0, 1)は initialLastRollId と比較を行う
+ * 強制再抽選モード (window.forceRerollMode) に対応
  */
 function calculateRerolls(Nodes, initialLastRollId, gacha) {
     Nodes.forEach((node, i) => {
-        // prevNode2は2つ前のノード。存在しない(1行目のA, B列など)場合は initialLastRollId を参照
         const prevNode2 = (i >= 2) ? Nodes[i - 2] : null;
         const prevId2 = prevNode2 ? prevNode2.itemId : (initialLastRollId || -1);
         
-        // レア(rarityId=1)かつアイテムIDが直前と一致する場合に再抽選フラグを立てる
-        node.reRollFlag = (node.rarityId === 1 && node.poolSize > 1 && node.itemId === prevId2);
+        // 通常判定: レア(1)かつアイテムIDが一致
+        const isDupe = (node.rarityId === 1 && node.poolSize > 1 && node.itemId === prevId2);
+        // 強制判定: レア(1)かつ強制モードがON
+        const isForced = (node.rarityId === 1 && node.poolSize > 1 && window.forceRerollMode);
+
+        node.reRollFlag = isDupe || isForced;
         
         const prevNode3 = (i >= 3) ? Nodes[i - 3] : null;
         const prevRerollId3 = (prevNode3 && (prevNode3.reRollFlag || prevNode3.reRerollFlag)) ? prevNode3.reRollItemId : -1;
@@ -94,7 +96,6 @@ function calculateSingleRollRoute(Nodes, tableRows, initialNg, initialLastRollId
     const rarityNames = ["ノーマル", "レア", "激レア", "超激レア", "伝説レア"];
     const gCycle = gacha.guaranteedCycle || 30;
     let sIdx = 1, sRoll = 1, sNgTracker = parseInt(initialNg, 10), sLastId = initialLastRollId;
-
     while (sIdx <= Nodes.length && sRoll <= tableRows) {
         const node = Nodes[sIdx - 1];
         const isG = (sNgTracker === 1);
@@ -108,7 +109,8 @@ function calculateSingleRollRoute(Nodes, tableRows, initialNg, initialLastRollId
             sNgTracker = gCycle;
         } else {
             const isMatch = (node.itemId === sLastId);
-            const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
+            // 通常の被り判定、または強制再抽選モードの適用
+            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
             block += `通常: ${rarityNames[node.rarityId]} → ${isRR ? node.reRollItemName : node.itemName}<br>`;
             sLastId = isRR ? node.reRollItemId : node.itemId;
             sIdx += isRR ? 3 : 2;
@@ -131,7 +133,6 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
     const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
     const gDiv = uRate + lRate;
     let tIdx = 1, tRoll = 1, tNgTracker = parseInt(initialNg, 10), tLastId = initialLastRollId;
-
     while (tIdx <= Nodes.length && tRoll <= tableRows) {
         const cycleHeadIdx = tIdx;
         const cycleHeadSeed = SEED_LIST[cycleHeadIdx];
@@ -146,8 +147,7 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
         if (gIndex !== -1 && gDiv > 0) {
             const gRoll = cycleHeadSeed % gDiv;
             gRarityId = (gRoll < uRate) ? '3' : '4';
-            tIdx++;
-            // 確定枠レアリティ判定に1消費
+            tIdx++; // 確定枠レアリティ判定に1消費
         }
 
         for (let j = 0; j < 10; j++) {
@@ -159,12 +159,12 @@ function calculateMultiRollRoute(Nodes, tableRows, initialNg, initialLastRollId,
                 const itemIdG = poolG[node.seed1 % Math.max(1, poolG.length)];
                 cycleBlock += `R${tRoll}[G]: ${getItemNameSafe(itemIdG)}<br>`;
                 tLastId = itemIdG;
-                tIdx += 1;
-                // 確定枠スロットに1消費
+                tIdx += 1; // 確定枠スロットに1消費
                 tNgTracker = gCycle;
             } else {
                 const isMatch = (node.itemId === tLastId);
-                const isRR = (node.rarityId === 1 && node.poolSize > 1 && isMatch) || node.reRerollFlag;
+                // 通常の被り判定、または強制再抽選モードの適用
+                const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
                 cycleBlock += `R${tRoll}: ${isRR ? node.reRollItemName : node.itemName}<br>`;
                 tLastId = isRR ? node.reRollItemId : node.itemId;
                 tIdx += isRR ? 3 : 2;

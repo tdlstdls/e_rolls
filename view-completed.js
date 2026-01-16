@@ -38,7 +38,6 @@ function setupPopupHandlers() {
     const closeBtn = document.querySelector('.popup-close-btn');
     const copyBtn = document.getElementById('copy-popup-content-btn');
     if (!popupOverlay || !closeBtn) return;
-
     const hidePopup = () => { popupOverlay.style.display = 'none'; };
     if (!window.hasEscListener) {
         document.addEventListener('keydown', (e) => {
@@ -69,7 +68,6 @@ function setupPopupHandlers() {
  */
 function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params, initialNg) {
     setupPopupHandlers();
-    
     const { Nodes, highlightInfo } = calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, initialNg);
 
     viewData.calculatedData = { Nodes, highlightInfo, thresholds };
@@ -78,32 +76,32 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
 
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const currentParams = new URLSearchParams(window.location.search);
-    
     let table = `<table style="table-layout: fixed;" class="${currentHighlightMode === 'single' ? 'mode-single' : (currentHighlightMode === 'multi' ? 'mode-multi' : '')}">`;
     table += '<thead>';
+    
+    // 強制再抽選モードの状態に応じてトグル記号を切り替え
+    const toggleChar = window.forceRerollMode ? '☑' : '□';
     const header = (displaySeed === '1') 
-        ? `<tr><th id="forceRerollToggle" class="col-no">#</th><th class="col-seed">SEED</th><th>A</th><th>AG</th><th class="col-seed">SEED</th><th>B</th><th>BG</th></tr>`
-        : `<tr><th id="forceRerollToggle" class="col-no">#</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr>`;
+        ? `<tr><th id="forceRerollToggle" class="col-no" style="cursor:pointer;">${toggleChar}</th><th class="col-seed">SEED</th><th>A</th><th>AG</th><th class="col-seed">SEED</th><th>B</th><th>BG</th></tr>`
+        : `<tr><th id="forceRerollToggle" class="col-no" style="cursor:pointer;">${toggleChar}</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr>`;
+        
     table += header + '</thead><tbody>';
 
     const initialNgNum = (initialNg !== 'none' && !isNaN(parseInt(initialNg))) ? parseInt(initialNg) : null;
-
     for (let r = 1; r <= tableRows; r++) {
         const nodeIdxA = (r - 1) * 2 + 1;
         const nodeIdxB = (r - 1) * 2 + 2;
         const nodeA = Nodes[nodeIdxA - 1];
         const nodeB = Nodes[nodeIdxB - 1];
         if (!nodeA || !nodeB) break;
-
+        
         // --- この行の ng パラメータを計算 ---
-        // ユーザー入力(initialNgNum)が実行前の値のため、1行目(r=1)を 入力値-1 からスタートさせる
         let rowNg = 'none';
         if (initialNgNum !== null) {
             rowNg = ((initialNgNum - r - 1) % 10 + 10) % 10 + 1;
         }
 
         table += `<tr><td class="col-no">${r}</td>`;
-
         const renderCell = (node, isGuar) => {
             const addr = node.address + (isGuar ? 'G' : '');
             const info = highlightInfo.get(addr);
@@ -126,7 +124,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                 cycleHeadSeed: (info && info.gRaritySeed) ? info.gRaritySeed : null,
                 cycleHeadIdx: (info && info.cycleHeadIdx) ? info.cycleHeadIdx : null
             };
-
             const getFmt = (id, skipStyle = false) => {
                 if (id === undefined || id === null || id === -1) return '---';
                 const name = getItemNameSafe(id);
@@ -137,7 +134,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                 if (item.rarity === 4) return `<span style="color:#0000ff; font-weight:bold;">${name}</span>`;
                 return name;
             };
-
             let displayHtml = '---';
             if (node.itemId !== -1) {
                 if (displaySeed === '1') {

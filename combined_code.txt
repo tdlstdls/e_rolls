@@ -612,9 +612,10 @@ function generateNodeCalculationDetailsHtml(node, gacha, thresholds, initialLast
 ====================
 FILE: logic-completed-search.js
 ====================
-// =================================================================================
-// 最適ルート探索（ビームサーチ）
-// =================================================================================
+/**
+ * 担当: 最適ルート探索（ビームサーチ）のコアロジック
+ * 修正: ロール種別（単発/10連1-9/10連10回目）に応じたハイライト種別の付与
+ */
 
 /**
  * 単発ガチャを1回シミュレートする
@@ -624,130 +625,146 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
     if (!node) return null;
 
     const gCycle = gacha.guaranteedCycle || 30;
-    // isGuar: あと1回で確定枠の時
     const isGuar = !isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (currentNg <= 1);
     
     if (isGuar) {
-        // 確定枠を消費する
-        return { items: [{itemId: node.itemGId, rarity: itemMaster[node.itemGId]?.rarity || 0}], useSeeds: 2, nextLastId: node.itemGId, nextNg: gCycle };
+        return { 
+            items: [{
+                itemId: node.itemGId, 
+                rarity: itemMaster[node.itemGId]?.rarity || 0,
+                isGuaranteed: true,
+                isReroll: false
+            }], 
+            useSeeds: 2, 
+            nextLastId: node.itemGId, 
+            nextNg: gCycle,
+            cellAddr: node.address + 'G',
+            hType: 'single' // 単発ハイライト
+        };
     } else {
-        // 通常ロール
-        // レア被り再抽選判定
         const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === lastId;
         let finalId = node.itemId;
         if (isRR && node.reRollItemId !== undefined) {
             finalId = node.reRollItemId;
         }
         const useSeeds = isRR ? 3 : 2;
-        // 確定枠ではないので、カウンターを1減らす
         const nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 1);
-        return { items: [{itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0}], useSeeds, nextLastId: finalId, nextNg };
+        return { 
+            items: [{
+                itemId: finalId, 
+                rarity: itemMaster[finalId]?.rarity || 0,
+                isGuaranteed: false,
+                isReroll: isRR
+            }], 
+            useSeeds, 
+            nextLastId: finalId, 
+            nextNg,
+            cellAddr: node.address,
+            hType: 'single' // 単発ハイライト
+        };
     }
 }
 
-
 /**
  * 10連ガチャを1回シミュレートする
- * ユーザー指定の特殊なSeed消費ロジックを実装
  */
 function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     const gCycle = gacha.guaranteedCycle || 30;
+    const uRate = gacha.uberGuaranteedFlag ? (gacha.rarityRates['3'] || 500) : 0;
+    const lRate = gacha.legendGuaranteedFlag ? (gacha.rarityRates['4'] || 200) : 0;
+    const gDiv = uRate + lRate;
 
-    // 1. 確定枠がこの10連に含まれるか、そのインデックス(0-9)を特定
     let guaranteedRollIndex = -1;
-    // `currentNg` が 1-10 の間なら、この10連に確定枠が含まれる
     if (!isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && currentNg <= 10 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag)) {
         guaranteedRollIndex = currentNg - 1;
     }
 
-    // 2. 確定枠の「レアリティ」を最初のSeedから決定
     let guaranteedRarityId = null;
     let raritySeedConsumed = 0;
-    if (guaranteedRollIndex !== -1) {
+    if (guaranteedRollIndex !== -1 && gDiv > 0) {
         const rarityNode = Nodes[startIdx - 1];
-        if (!rarityNode) return null; // 探索不能
+        if (!rarityNode) return null;
         guaranteedRarityId = rarityNode.rarityGId;
-        raritySeedConsumed = 1; // レアリティ判定で1消費
+        raritySeedConsumed = 1;
     }
 
-    // 3. 各ロールで消費するSeed数と開始インデックスを事前計算
-    const rollInfos = [];
-    let currentSeedIdx = startIdx + raritySeedConsumed;
+    const items = [];
+    const cellData = []; // { addr, type } の配列
+    let ptr = startIdx + raritySeedConsumed;
     let tempLastId = lastId;
 
-    // まず通常ロール9回分(または10回分)のSeed消費を計算
     for (let i = 0; i < 10; i++) {
+        // 10連の最後（i=9）かどうかでハイライト色を分ける
+        const hType = (i === 9) ? 'ten-guar' : 'ten-normal';
+
         if (i === guaranteedRollIndex) {
-            rollInfos.push(null); // 確定枠は後で計算
-            continue;
+            const slotNode = Nodes[ptr - 1];
+            if (!slotNode) return null;
+            
+            const poolG = gacha.rarityItems[guaranteedRarityId] || [];
+            const slotG = slotNode.seed1 % Math.max(1, poolG.length);
+            const itemIdG = poolG[slotG];
+            
+            items.push({ 
+                itemId: itemIdG, 
+                rarity: itemMaster[itemIdG]?.rarity || 0,
+                isGuaranteed: true,
+                isReroll: false
+            });
+            
+            cellData.push({ addr: slotNode.address + 'G', type: hType });
+            
+            ptr += 1;
+            tempLastId = itemIdG;
+        } else {
+            const node = Nodes[ptr - 1];
+            if (!node) return null;
+
+            const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === tempLastId;
+            let finalId = node.itemId;
+            if (isRR && node.reRollItemId !== undefined) {
+                finalId = node.reRollItemId;
+            }
+            
+            items.push({ 
+                itemId: finalId, 
+                rarity: itemMaster[finalId]?.rarity || 0,
+                isGuaranteed: false,
+                isReroll: isRR
+            });
+            
+            cellData.push({ addr: node.address, type: hType });
+            
+            const consumed = isRR ? 3 : 2;
+            ptr += consumed;
+            tempLastId = finalId;
         }
-        const node = Nodes[currentSeedIdx - 1];
-        if (!node) return null;
-        
-        const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === tempLastId;
-        const useSeeds = isRR ? 3 : 2;
-
-        let finalId = node.itemId;
-        if (isRR && node.reRollItemId !== undefined) {
-            finalId = node.reRollItemId;
-        }
-        
-        rollInfos.push({ type: 'normal', seed: currentSeedIdx, use: useSeeds, itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0 });
-        currentSeedIdx += useSeeds;
-        tempLastId = finalId;
-    }
-
-    // 4. 最後に確定枠の「スロット」用のSeedを割り当てる
-    if (guaranteedRollIndex !== -1) {
-        const slotNode = Nodes[currentSeedIdx - 1];
-        if (!slotNode) return null;
-        
-        const poolG = gacha.rarityItems[guaranteedRarityId] || [];
-        const slotG = slotNode.seed1 % Math.max(1, poolG.length);
-        const itemIdG = poolG[slotG];
-
-        rollInfos[guaranteedRollIndex] = { type: 'guaranteed', seed: currentSeedIdx, use: 1, itemId: itemIdG, rarity: itemMaster[itemIdG]?.rarity || 0 };
-        currentSeedIdx += 1;
-    }
-
-    // 5. 結果を組み立て
-    const items = [];
-    let nextLastId = lastId;
-    
-    for (let i = 0; i < 10; i++) {
-        const roll = rollInfos[i];
-        items.push({ itemId: roll.itemId, rarity: roll.rarity });
-        nextLastId = roll.itemId;
     }
     
-    // 10連後の最終的な nextNg を計算
     let nextNg;
     if (guaranteedRollIndex !== -1) {
-        // 確定枠を消費したので、gCycleにリセットされる
         nextNg = gCycle;
     } else {
-        // 確定枠を消費していないので、10回分カウンターを減らす
         nextNg = (isNaN(currentNg) || currentNg === 'none') ? 'none' : (currentNg - 10);
     }
 
-    const totalSeedsConsumed = currentSeedIdx - startIdx;
-    return { items, useSeeds: totalSeedsConsumed, nextLastId, nextNg };
+    return { 
+        items, 
+        useSeeds: ptr - startIdx, 
+        nextLastId: tempLastId, 
+        nextNg, 
+        cellData 
+    };
 }
-
 
 /**
  * 探索の最終結果から最良のものを選択する
- * totalTicketsを使い切った状態から優先的に探す
  */
 function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
-    // 指定されたチケット数を使い切った状態から逆順に探す
-    for (let t = totalTickets; t >= 1; t--) {
+    for (let t = totalTickets; t >= 0; t--) {
         const statesInTier = dp[t];
-        if (!statesInTier || statesInTier.size === 0) {
-            continue; // このチケット数の状態がなければ次へ
-        }
+        if (!statesInTier || statesInTier.size === 0) continue;
 
-        // このチケット数で有効なルートが見つかったので、この中からベストを探して返す
         let bestStateInTier = null;
         let bestScoreInTier = -1;
 
@@ -758,29 +775,22 @@ function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
                 bestStateInTier = state;
             }
         }
-        return bestStateInTier;
+        if (bestStateInTier) return bestStateInTier;
     }
-    return null; // 有効なルートが一つも見つからなかった場合
+    return null;
 }
 
-
-function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg, targetLayers = []) {
-    // 渡された targetLayers が実際に有効なターゲットを含んでいるかチェック
-    const hasValidLayers = targetLayers && targetLayers.some(layer => Array.isArray(layer) && layer.length > 0);
-    const effectiveLayers = hasValidLayers ? targetLayers : [];
-
-    const BEAM_WIDTH = 2000; // ビーム幅
-
-    // dp[t] はチケットを t 枚消費した時点での状態を保持するMap
+/**
+ * 探索メイン関数
+ */
+function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg) {
+    const BEAM_WIDTH = 1000; 
     const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
 
-    // 初期状態 (チケット0枚)
-    const initialLayerCounts = new Array(effectiveLayers.length).fill(0);
-    dp[0].set(`1_${initialLastRollId}_${initialNg}_${initialLayerCounts.join('-')}`, {
+    dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
         nodeIdx: 1,
         lastId: initialLastRollId,
         currentNg: initialNg,
-        layerCounts: initialLayerCounts,
         ubers: 0,
         legends: 0,
         path: [],
@@ -788,79 +798,49 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
         tickets: 0
     });
 
-    /**
-     * 状態を評価するスコア関数
-     * @param {object} state 状態
-     * @returns {number} スコア
-     */
     const calculateScore = (state) => {
-        let score = 0;
-
-        // ターゲットレイヤーが指定されているか
-        if (hasValidLayers) {
-            // ターゲットのスコアを最優先で計算
-            for (let i = 0; i < state.layerCounts.length; i++) {
-                // 第1優先を100,000点、以降の優先度は1/10ずつ価値を落とす
-                score += state.layerCounts[i] * (100000 / Math.pow(10, i));
-            }
-            // ターゲット指定時は、副産物（超激・伝説）のスコアは加算しない
-        } else {
-            // ターゲット指定がない場合は、単純に超激レア・伝説レアの数を評価する
-            score += state.ubers * 100;
-            score += state.legends * 500;
-        }
-
-        return score;
+        return (state.ubers * 10000) + (state.legends * 1000);
     };
 
-    for (let t = 0; t < totalTickets; t++) {
+    for (let t = 0; t <= totalTickets; t++) {
         if (!dp[t] || dp[t].size === 0) continue;
 
-        // ビームサーチによる絞り込み: スコア上位 `BEAM_WIDTH` 件のみを保持する
         if (dp[t].size > BEAM_WIDTH) {
             const sortedStates = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a));
             const newDp = new Map();
             for (let i = 0; i < Math.min(sortedStates.length, BEAM_WIDTH); i++) {
                 const state = sortedStates[i];
-                const key = `${state.nodeIdx}_${state.lastId}_${state.currentNg}_${state.layerCounts.join('-')}`;
+                const key = `${state.nodeIdx}_${state.lastId}_${state.currentNg}`;
                 newDp.set(key, state);
             }
             dp[t] = newDp;
         }
 
         const states = Array.from(dp[t].values());
-
         for (const state of states) {
-            // --- 単発ガチャ (Single Roll) ---
+            // --- 単発ガチャ ---
             if (t + 1 <= totalTickets) {
                 const resS = simulateSingleRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resS) {
-                    const consumedAddrs = [];
-                    for (let i = 0; i < resS.useSeeds; i++) {
-                        const n = Nodes[state.nodeIdx - 1 + i];
-                        if (n) consumedAddrs.push(n.address);
-                    }
-
-                    const newLayerCounts = [...state.layerCounts];
-                    // 有効なターゲットがある場合のみカウント
-                    if (hasValidLayers) {
-                        const item = resS.items[0];
-                        effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) newLayerCounts[idx]++; });
-                    }
-                    
+                    const item = resS.items[0];
                     const nextState = {
                         nodeIdx: state.nodeIdx + resS.useSeeds,
                         lastId: resS.nextLastId,
                         currentNg: resS.nextNg,
-                        layerCounts: newLayerCounts,
-                        ubers: state.ubers + (resS.items[0].rarity === 3 ? 1 : 0),
-                        legends: state.legends + (resS.items[0].rarity === 4 ? 1 : 0),
-                        path: state.path.concat({ type: 'single', item: getItemNameSafe(resS.items[0].itemId), addr: Nodes[state.nodeIdx - 1]?.address || '?', consumed: consumedAddrs }),
+                        ubers: state.ubers + (item.rarity === 3 ? 1 : 0),
+                        legends: state.legends + (item.rarity === 4 ? 1 : 0),
+                        path: state.path.concat({ 
+                            type: 'single', 
+                            item: getItemNameSafe(item.itemId), 
+                            isGuaranteed: item.isGuaranteed,
+                            isReroll: item.isReroll,
+                            addr: Nodes[state.nodeIdx - 1]?.address || '?', 
+                            targetCell: { addr: resS.cellAddr, type: resS.hType } // 型付き情報を保存
+                        }),
                         rollCount: state.rollCount + 1,
                         tickets: t + 1
                     };
-                    
-                    const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}_${nextState.layerCounts.join('-')}`;
+                    const key = `${nextState.nodeIdx}_${nextState.lastId}_${nextState.currentNg}`;
                     const existing = dp[t + 1].get(key);
                     if (!existing || calculateScore(existing) < calculateScore(nextState)) {
                         dp[t + 1].set(key, nextState);
@@ -868,44 +848,39 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                 }
             }
 
-            // --- 10連ガチャ (10-Roll) ---
+            // --- 10連ガチャ ---
             if (t + 10 <= totalTickets) {
                 const resTen = simulateTenRoll(state.nodeIdx, state.lastId, state.rollCount, state.currentNg, gacha, Nodes);
                 if (resTen) {
-                    const consumedAddrs = [];
-                    for (let i = 0; i < resTen.useSeeds; i++) {
-                        const n = Nodes[state.nodeIdx - 1 + i];
-                        if (n) consumedAddrs.push(n.address);
-                    }
-
-                    const addLayer = new Array(effectiveLayers.length).fill(0);
                     let ubers = 0;
                     let legends = 0;
-                    let itemNames = [];
-                    
+                    let itemsData = [];
                     resTen.items.forEach(item => {
-                        // 有効なターゲットがある場合のみカウント
-                        if (hasValidLayers) {
-                            effectiveLayers.forEach((ids, idx) => { if (ids.includes(Number(item.itemId))) addLayer[idx]++; });
-                        }
                         if (item.rarity === 3) ubers++;
                         if (item.rarity === 4) legends++;
-                        itemNames.push(getItemNameSafe(item.itemId));
+                        itemsData.push({
+                            name: getItemNameSafe(item.itemId),
+                            isGuaranteed: item.isGuaranteed,
+                            isReroll: item.isReroll
+                        });
                     });
 
                     const nextStateTen = {
                         nodeIdx: state.nodeIdx + resTen.useSeeds,
                         lastId: resTen.nextLastId,
                         currentNg: resTen.nextNg,
-                        layerCounts: state.layerCounts.map((c, idx) => c + addLayer[idx]),
                         ubers: state.ubers + ubers,
                         legends: state.legends + legends,
-                        path: state.path.concat({ type: 'ten', items: itemNames, addr: Nodes[state.nodeIdx - 1]?.address || '?', consumed: consumedAddrs }),
+                        path: state.path.concat({ 
+                            type: 'ten', 
+                            items: itemsData,
+                            addr: Nodes[state.nodeIdx - 1]?.address || '?', 
+                            targetCells: resTen.cellData // 型付き情報の配列を保存
+                        }),
                         rollCount: state.rollCount + 10,
                         tickets: t + 10
                     };
-
-                    const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}_${nextStateTen.layerCounts.join('-')}`;
+                    const keyTen = `${nextStateTen.nodeIdx}_${nextStateTen.lastId}_${nextStateTen.currentNg}`;
                     const existingTen = dp[t + 10].get(keyTen);
                     if (!existingTen || calculateScore(existingTen) < calculateScore(nextStateTen)) {
                         dp[t + 10].set(keyTen, nextStateTen);
@@ -915,7 +890,6 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
         }
     }
     
-    // 最終的に最もスコアの高い状態を見つける
     return findBestBeamSearchResult(dp, totalTickets, calculateScore);
 }
 
@@ -2063,6 +2037,30 @@ th {
     background-color: #FFA500 !important; /* オレンジ色 */
 }
 
+/* シミュレーションルートのハイライト色分け */
+.route-highlight-single {
+    background-color: #FFE0B2 !important; /* 薄いオレンジ */
+}
+.route-highlight-ten-normal {
+    background-color: #FFA500 !important; /* 通常のオレンジ */
+}
+.route-highlight-ten-guar {
+    background-color: #E65100 !important; /* 濃いオレンジ */
+    color: white !important;
+}
+.route-highlight-ten-guar a {
+    color: white !important;
+}
+
+.sim-btn {
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
 ====================
 FILE: utils.js
 ====================
@@ -2219,14 +2217,20 @@ FILE: view-completed.js
 ====================
 /**
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
+ * 修正: リンク内 ng パラメータの開始値を「入力値 - 1」とし、10ロールサイクル（1の次は10）に準拠
  */
 
 window.viewData = {
     calculatedData: null,
     gacha: null,
     initialLastRollId: null,
+    highlightedRoute: new Map(), // アドレス -> 種別のマップ
+    showSimHighlight: true 
 };
 
+/**
+ * 計算詳細ポップアップの表示
+ */
 function showCalculationPopup(nodeIndex, isGuaranteed, linkSeeds) {
     if (nodeIndex === undefined || viewData.calculatedData === null) return;
     const node = viewData.calculatedData.Nodes[nodeIndex];
@@ -2243,6 +2247,9 @@ function showCalculationPopup(nodeIndex, isGuaranteed, linkSeeds) {
     popupOverlay.style.display = 'flex';
 }
 
+/**
+ * ポップアップ操作のハンドラ設定
+ */
 function setupPopupHandlers() {
     const popupOverlay = document.getElementById('seed-popup-overlay');
     const closeBtn = document.querySelector('.popup-close-btn');
@@ -2274,8 +2281,12 @@ function setupPopupHandlers() {
     }
 }
 
+/**
+ * メインテーブルの生成と表示
+ */
 function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresholds, initialLastRollId, displaySeed, params, initialNg) {
     setupPopupHandlers();
+    
     const { Nodes, highlightInfo } = calculateCompletedData(initialSeed, gacha, tableRows, thresholds, initialLastRollId, initialNg);
 
     viewData.calculatedData = { Nodes, highlightInfo, thresholds };
@@ -2284,12 +2295,15 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
 
     const getAddress = (n) => getAddressStringGeneric(n, 2);
     const currentParams = new URLSearchParams(window.location.search);
+    
     let table = `<table style="table-layout: fixed;" class="${currentHighlightMode === 'single' ? 'mode-single' : (currentHighlightMode === 'multi' ? 'mode-multi' : '')}">`;
     table += '<thead>';
     const header = (displaySeed === '1') 
         ? `<tr><th id="forceRerollToggle" class="col-no">#</th><th class="col-seed">SEED</th><th>A</th><th>AG</th><th class="col-seed">SEED</th><th>B</th><th>BG</th></tr>`
         : `<tr><th id="forceRerollToggle" class="col-no">#</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr>`;
     table += header + '</thead><tbody>';
+
+    const initialNgNum = (initialNg !== 'none' && !isNaN(parseInt(initialNg))) ? parseInt(initialNg) : null;
 
     for (let r = 1; r <= tableRows; r++) {
         const nodeIdxA = (r - 1) * 2 + 1;
@@ -2298,21 +2312,30 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
         const nodeB = Nodes[nodeIdxB - 1];
         if (!nodeA || !nodeB) break;
 
+        // --- この行の ng パラメータを計算 ---
+        // ユーザー入力(initialNgNum)が実行前の値のため、1行目(r=1)を 入力値-1 からスタートさせる
+        let rowNg = 'none';
+        if (initialNgNum !== null) {
+            rowNg = ((initialNgNum - r - 1) % 10 + 10) % 10 + 1;
+        }
+
         table += `<tr><td class="col-no">${r}</td>`;
 
         const renderCell = (node, isGuar) => {
             const addr = node.address + (isGuar ? 'G' : '');
             const info = highlightInfo.get(addr);
             
-            let cls = determineHighlightClass(info);
-
-            // 最適ルートのハイライト処理
-            if (viewData.highlightedRoute && viewData.highlightedRoute.includes(node.address)) {
-                cls = cls ? `${cls} route-highlight` : 'route-highlight';
+            let cls = '';
+            if (viewData.showSimHighlight && viewData.highlightedRoute instanceof Map && viewData.highlightedRoute.has(addr)) {
+                const hType = viewData.highlightedRoute.get(addr);
+                if (hType === 'single') cls = 'route-highlight-single';
+                else if (hType === 'ten-normal') cls = 'route-highlight-ten-normal';
+                else if (hType === 'ten-guar') cls = 'route-highlight-ten-guar';
+            } else {
+                cls = determineHighlightClass(info);
             }
 
             const isPartnerRR = (node.reRollFlag || node.reRerollFlag);
-
             let linkSeeds = {
                 normal: node.seed2, 
                 reroll: isPartnerRR ? node.seed3 : null, 
@@ -2325,7 +2348,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                 if (id === undefined || id === null || id === -1) return '---';
                 const name = getItemNameSafe(id);
                 if (skipStyle) return name;
-                
                 const item = itemMaster[id];
                 if (!item) return name;
                 if (item.rarity === 3) return `<span style="color:#d9534f; font-weight:bold;">${name}</span>`;
@@ -2362,20 +2384,20 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                         if (isPartnerRR) {
                             const poolG = gacha.rarityItems[node.rarityGId] || [];
                             const itemG_rr_Id = poolG[node.seed2 % Math.max(1, poolG.length)];
-                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
-                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, itemG_rr_Id, initialNg, r, true)}">${getFmt(itemG_rr_Id, true)}</a>`;
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, rowNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, itemG_rr_Id, rowNg, r, true)}">${getFmt(itemG_rr_Id, true)}</a>`;
                             displayHtml = `${link1}<br>${link2}`;
                         } else {
-                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, rowNg, r, true)}">${baseName}</a>`;
                         }
                     } else {
                         const baseName = getFmt(node.itemId);
                         if (isPartnerRR) {
-                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
-                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, node.reRollItemId, initialNg, r, true)}">${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}</a>`;
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, rowNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, node.reRollItemId, rowNg, r, true)}">${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}</a>`;
                             displayHtml = `${link1}<br>${link2}`;
                         } else {
-                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, rowNg, r, true)}">${baseName}</a>`;
                         }
                     }
                 }
@@ -2383,8 +2405,10 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             return { html: `<td class="${cls || ''}">${displayHtml}</td>` };
         };
 
-        const cA = renderCell(nodeA, false); const cAG = renderCell(nodeA, true);
-        const cB = renderCell(nodeB, false); const cBG = renderCell(nodeB, true);
+        const cA = renderCell(nodeA, false); 
+        const cAG = renderCell(nodeA, true);
+        const cB = renderCell(nodeB, false);
+        const cBG = renderCell(nodeB, true);
 
         if (displaySeed === '1') {
             table += `<td class="col-seed">${nodeA.seed1} [${nodeA.index}]</td>${cA.html}${cAG.html}<td class="col-seed">${nodeB.seed1} [${nodeB.index}]</td>${cB.html}${cBG.html}`;
@@ -3289,66 +3313,61 @@ FILE: view-simulation-ui.js
 ====================
 /**
  * 担当: シミュレーションUIの基本要素の生成
+ * 修正: 階層選択UIの削除、およびハイライト切替ボタンの追加
  */
 
+/**
+ * スタイル付き要素を生成する共通関数
+ */
 function createStyledElement(tag, styles = {}, properties = {}) {
     const element = document.createElement(tag);
     Object.assign(element.style, styles);
 
-    // `dataset` has only a getter and cannot be assigned directly.
-    // Handle it separately.
     if (properties.dataset) {
         Object.assign(element.dataset, properties.dataset);
-        delete properties.dataset; // Remove it to avoid conflict
+        delete properties.dataset;
     }
 
     Object.assign(element, properties);
     return element;
 }
 
+/**
+ * コントロール行（チケット入力、実行、コピー、ハイライト切替ボタン）を生成
+ */
 function createControlRow() {
     const row = createStyledElement('div', {
         display: 'flex',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '15px',
-        marginBottom: '12px'
+        gap: '12px',
+        marginBottom: '0px'
     });
+
     row.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 5px;">
-            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">チケット:</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 0.85rem; font-weight: bold; color: #555;">チケット:</label>
             <input type="number" id="simTicketInput" value="30" min="1" max="1000" 
-                   style="width: 60px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                   style="width: 65px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;">
         </div>
-        <div id="selectedTargetStatus" style="font-size: 0.75rem; color: #0056b3; font-weight: bold; 
-             background: #fff; padding: 5px 10px; border-radius: 4px; border: 1px solid #bdd7ff;">
-            階層: 1
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+                シミュレーション開始
+            </button>
+            <button id="copySimResultBtn" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+                結果をコピー
+            </button>
+            <button id="toggleHighlightBtn" style="background-color: #007bff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+                ハイライト: ON
+            </button>
         </div>
-        <button id="runSimBtn" class="sim-btn sim-btn-run">シミュレーション開始</button>
-        <button id="copySimResultBtn" class="sim-btn sim-btn-copy">結果をコピー</button>
     `;
     return row;
 }
 
-function createLayersGroup(gacha) {
-    const container = createStyledElement('div', {}, { id: 'targetLayersContainer' });
-    const addBtn = createStyledElement('button', {
-        marginTop: '10px',
-        fontSize: '0.75rem',
-        padding: '5px 10px',
-        cursor: 'pointer',
-        backgroundColor: '#fff',
-        border: '1px solid #007bff',
-        color: '#007bff',
-        borderRadius: '4px'
-    }, {
-        id: 'addPriorityLayerBtn',
-        textContent: '＋ 次順位の階層を追加'
-    });
-    addBtn.onclick = () => createLayerUI(gacha, container.children.length + 1);
-    return [container, addBtn];
-}
-
+/**
+ * 結果表示用のテキストエリアを生成
+ */
 function createResultDisplay() {
     return createStyledElement('div', {
         marginTop: '15px',
@@ -3359,10 +3378,14 @@ function createResultDisplay() {
         fontFamily: 'monospace',
         fontSize: '0.85rem',
         display: 'none',
-        borderRadius: '8px'
+        borderRadius: '8px',
+        lineHeight: '1.5'
     }, { id: 'sim-result-text' });
 }
 
+/**
+ * シミュレーションUI全体のグループを生成
+ */
 function createSimUIGroup(gacha) {
     const group = createStyledElement('div', {
         padding: '15px',
@@ -3372,10 +3395,10 @@ function createSimUIGroup(gacha) {
         marginTop: '10px'
     }, { id: 'sim-ui-group' });
 
+    // ボタン類を含むメイン行のみを追加
     const controlRow = createControlRow();
-    const [layersContainer, addLayerBtn] = createLayersGroup(gacha);
+    group.append(controlRow);
     
-    group.append(controlRow, layersContainer, addLayerBtn);
     return group;
 }
 
@@ -3384,88 +3407,44 @@ FILE: view-simulation-layer.js
 ====================
 /**
  * 担当: シミュレーションUIの階層管理
+ * 修正: アイテム選択機能の廃止に伴い、すべての関数を空の状態にリファクタリング
+ * （他ファイルからの参照エラーを防ぐため、定義のみを維持します）
  */
 
+/**
+ * 優先ターゲット選択用のUI階層を作成する
+ * （簡素化のため、現在は何も行いません）
+ */
 function createLayerUI(gacha, priority) {
-    const layersContainer = document.getElementById('targetLayersContainer');
-    if (!layersContainer) return;
-
-    const wrapper = createStyledElement('div', {
-        marginTop: '12px',
-        padding: '10px',
-        background: '#fff',
-        border: '1px solid #ccc',
-        borderRadius: '6px'
-    }, { className: 'priority-layer-wrapper' });
-
-    wrapper.innerHTML = `<div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 8px; color: #004085;">
-        【第 ${priority} 優先ターゲット】
-    </div>`;
-
-    const area = createStyledElement('div', {
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '10px',
-        maxHeight: '120px',
-        overflowY: 'auto',
-        padding: '5px'
-    }, {
-        className: 'layer-selection-area',
-        dataset: { priority }
-    });
-
-    populateLayerWithOptions(area, gacha);
-    wrapper.appendChild(area);
-    layersContainer.appendChild(wrapper);
-
-    const status = document.getElementById('selectedTargetStatus');
-    if (status) status.textContent = `階層: ${layersContainer.children.length}`;
+    // 階層選択UIは廃止されました
+    return;
 }
 
+/**
+ * 選択エリアにアイテムのチェックボックスを配置する
+ * （簡素化のため、現在は何も行いません）
+ */
 function populateLayerWithOptions(area, gacha) {
-    area.innerHTML = '';
-    const targetPool = [];
-    
-    Object.keys(gacha.rarityItems)
-          .sort((a, b) => parseInt(b) - parseInt(a))
-          .forEach(rid => {
-              if (gacha.rarityItems[rid]) targetPool.push(...gacha.rarityItems[rid]);
-          });
-
-    Array.from(new Set(targetPool)).forEach(id => {
-        const item = itemMaster[id];
-        if (!item) return;
-        area.appendChild(createItemCheckbox(item));
-    });
+    // アイテム選択機能は廃止されました
+    return;
 }
 
+/**
+ * アイテムのチェックボックス要素を生成する
+ * （簡素化のため、現在は何も行いません）
+ */
 function createItemCheckbox(item) {
-    const label = createStyledElement('label', {
-        fontSize: '0.75rem',
-        display: 'flex',
-        alignItems: 'center',
-        cursor: 'pointer',
-        background: '#f8f9fa',
-        padding: '2px 6px',
-        borderRadius: '3px',
-        border: '1px solid #eee'
-    });
-
-    let color = '#333';
-    if (item.rarity === 2) color = '#c0a000'; // 激レア
-    else if (item.rarity === 3) color = '#d9534f'; // 超激レア
-    else if (item.rarity === 4) color = '#0000ff'; // 伝説レア
-
-    label.innerHTML = `
-        <input type="checkbox" class="layer-target-checkbox" value="${item.id}" style="margin-right: 5px;">
-        <span style="color: ${color}; font-weight: ${item.rarity >= 3 ? 'bold' : 'normal'};">${item.name}</span>
-    `;
-    return label;
+    // アイテム選択機能は廃止されました
+    return null;
 }
 
+/**
+ * ガチャ切り替え時にUI内のアイテムリストを更新する
+ * （簡素化のため、現在は何も行いません）
+ */
 function updateSimGachaItems(gacha) {
-    const layers = document.querySelectorAll('.layer-selection-area');
-    layers.forEach(area => populateLayerWithOptions(area, gacha));
+    // アイテム選択機能は廃止されました
+    return;
 }
 
 ====================
@@ -3473,43 +3452,59 @@ FILE: view-simulation-result.js
 ====================
 /**
  * 担当: シミュレーション結果の表示
+ * 修正: 「(確定)」「(被り)」ラベルの表示対応、および表示優先順位の調整
  */
 
+/**
+ * シミュレーション結果を画面に描画するメイン関数
+ */
 function displaySimulationResult(result) {
     const display = document.getElementById('sim-result-text');
     display.style.display = 'block';
     display.innerHTML = "";
 
     if (!result) { 
-        display.textContent = "指定されたチケット枚数内でターゲットを獲得できるルートが見つかりませんでした。";
+        display.textContent = "指定されたチケット枚数内で有効なルートが見つかりませんでした。";
         window.lastSimText = "";
         return;
     }
     
+    // ヘッダー（獲得数情報）の作成
     const header = createResultHeader(result);
     display.appendChild(header);
 
+    // 各ロールの結果行を生成
     const { plainText, pathRows } = renderResultRows(result.path);
     pathRows.forEach(row => display.appendChild(row));
     
-    window.lastSimText = `【最適ルートシミュレーション結果】(${header.dataset.status})\n\n` + plainText;
+    // コピー用のプレーンテキストを保存（超激レアを先に記載）
+    window.lastSimText = `【最適ルートシミュレーション結果】(超激レア:${result.ubers}, 伝説レア:${result.legends})\n\n` + plainText;
 }
 
+/**
+ * 結果表示の上部ヘッダー（獲得統計）を生成
+ */
 function createResultHeader(result) {
-    const statusText = result.layerCounts.map((c, i) => `P${i + 1}:${c}`).join(', ');
-    const fullStatus = `${statusText} / 超激:${result.ubers} / 伝説:${result.legends}`;
+    // 表示テキストを超激レア優先に変更
+    const fullStatus = `超激レア: ${result.ubers}体 / 伝説レア: ${result.legends}体`;
 
     const header = createStyledElement('div', {
         fontWeight: 'bold',
         marginBottom: '12px',
         borderBottom: '1px solid #28a745',
-        paddingBottom: '5px'
+        paddingBottom: '5px',
+        fontSize: '1rem',
+        color: '#155724'
     });
-    header.textContent = `【最適ルート】(獲得数 -> ${fullStatus})`;
+
+    header.textContent = `【最適獲得ルート】 (${fullStatus})`;
     header.dataset.status = fullStatus;
     return header;
 }
 
+/**
+ * ガチャの実行パスを解析して表示用の行を作成
+ */
 function renderResultRows(path) {
     let plainText = "";
     const pathRows = [];
@@ -3518,8 +3513,10 @@ function renderResultRows(path) {
     while (i < path.length) {
         let row, plain, consumed;
         if (path[i].type === 'single') {
+            // 連続する単発ガチャをまとめて表示
             ({ row, plain, consumed } = renderConsecutiveSingles(path, i));
         } else {
+            // 10連ガチャを表示
             ({ row, plain, consumed } = renderTenPull(path, i));
         }
         pathRows.push(row);
@@ -3529,47 +3526,86 @@ function renderResultRows(path) {
     return { plainText, pathRows };
 }
 
+/**
+ * 連続する単発ガチャを1つのブロックとして描画
+ */
 function renderConsecutiveSingles(path, startIndex) {
     let j = startIndex;
     const itemsHtml = [], itemsPlain = [];
+    
     while (j < path.length && path[j].type === 'single') {
-        itemsHtml.push(getColoredItemHtml(path[j].item));
-        itemsPlain.push(path[j].item);
+        const step = path[j];
+        let label = "";
+        if (step.isGuaranteed) label += " (確定)";
+        if (step.isReroll) label += " (被り)";
+
+        itemsHtml.push(getColoredItemHtml(step.item) + label);
+        itemsPlain.push(step.item + label);
         j++;
     }
+    
     const count = j - startIndex;
     const addr = path[startIndex].addr;
-    const header = `<span style="color: #007bff; font-weight: bold;">[単発]</span> ${count}ロール (${addr}～):<br>`;
+    const header = `<span style="color: #007bff; font-weight: bold;">[単発]</span> ${count}回 (${addr}～):<br>`;
     const html = "　=> " + itemsHtml.join('、');
-    const plain = `[単発] ${count}ロール (${addr}～) => ` + itemsPlain.join('、');
+    const plain = `[単発] ${count}回 (${addr}～) => ` + itemsPlain.join('、');
     
     return { row: createResultRow(header + html), plain, consumed: count };
 }
 
+/**
+ * 10連ガチャの結果を1つのブロックとして描画
+ */
 function renderTenPull(path, index) {
     const pull = path[index];
     const header = `<span style="color: #c0a000; font-weight: bold;">[10連]</span> (${pull.addr}～):<br>`;
-    const html = "　=> " + pull.items.map(getColoredItemHtml).join('、');
-    const plain = `[10連] (${pull.addr}～) => ` + pull.items.join('、');
+    
+    // pull.items は {name, isGuaranteed, isReroll} の配列
+    const itemsHtml = pull.items.map(item => {
+        let label = "";
+        if (item.isGuaranteed) label += " (確定)";
+        if (item.isReroll) label += " (被り)";
+        return getColoredItemHtml(item.name) + label;
+    });
 
+    const itemsPlain = pull.items.map(item => {
+        let label = "";
+        if (item.isGuaranteed) label += " (確定)";
+        if (item.isReroll) label += " (被り)";
+        return item.name + label;
+    });
+
+    const html = "　=> " + itemsHtml.join('、');
+    const plain = `[10連] (${pull.addr}～) => ` + itemsPlain.join('、');
+    
     return { row: createResultRow(header + html), plain, consumed: 1 };
 }
 
+/**
+ * チェックボックス付きの表示行を作成
+ */
 function createResultRow(innerHTML) {
     const rowContainer = createStyledElement('div', {
         display: 'flex',
-        gap: '8px',
-        marginBottom: '6px',
-        alignItems: 'flex-start'
+        gap: '10px',
+        marginBottom: '8px',
+        alignItems: 'flex-start',
+        borderBottom: '1px solid #eee',
+        paddingBottom: '4px'
     });
 
     const checkbox = createStyledElement('input', {
-        marginTop: '3px',
-        cursor: 'pointer'
+        marginTop: '4px',
+        cursor: 'pointer',
+        transform: 'scale(1.2)'
     }, { type: 'checkbox' });
 
-    const span = createStyledElement('span', { lineHeight: '1.4' }, { innerHTML });
+    const span = createStyledElement('span', { 
+        lineHeight: '1.5',
+        flex: '1'
+    }, { innerHTML });
 
+    // チェックボックスによる「消し込み」機能
     checkbox.onchange = () => {
         span.style.color = checkbox.checked ? '#aaa' : '#333';
         span.style.textDecoration = checkbox.checked ? 'line-through' : 'none';
@@ -3579,12 +3615,17 @@ function createResultRow(innerHTML) {
     return rowContainer;
 }
 
+/**
+ * アイテム名にレアリティに応じた色を付ける
+ */
 function getColoredItemHtml(name) {
     const item = Object.values(itemMaster).find(it => it.name === name);
     if (!item) return name;
 
     if (item.rarity === 3) return `<span style="color: #d9534f; font-weight: bold;">${name}</span>`;
     if (item.rarity === 4) return `<span style="color: #0000ff; font-weight: bold;">${name}</span>`;
+    if (item.rarity === 2) return `<span style="color: #c0a000; font-weight: bold;">${name}</span>`;
+    
     return name;
 }
 
@@ -3593,42 +3634,57 @@ FILE: view-simulation-main.js
 ====================
 /**
  * 担当: シミュレーションの全体統括
+ * 修正: ハイライト情報を Map 形式（アドレス -> 種別）で保存するように変更
  */
 
+/**
+ * シミュレーション表示エリアの初期化
+ */
 function initializeSimulationView(gacha) {
     const simContainer = document.getElementById('sim-ui-container');
     if (!simContainer) return;
 
+    // ハイライト表示フラグの初期化
+    if (viewData.showSimHighlight === undefined) {
+        viewData.showSimHighlight = true; 
+    }
+
     simContainer.innerHTML = '';
     simContainer.dataset.initialized = 'true';
 
+    // UIパーツの生成（view-simulation-ui.jsに依存）
     const simGroup = createSimUIGroup(gacha);
     const resultDisplay = createResultDisplay();
 
     simContainer.append(simGroup, resultDisplay);
 
+    // イベントの紐付け
     document.getElementById('runSimBtn').onclick = runSimulation;
     document.getElementById('copySimResultBtn').onclick = copySimResult;
+    document.getElementById('toggleHighlightBtn').onclick = toggleHighlightMode;
 
-    createLayerUI(gacha, 1);
+    // ボタンの初期テキスト設定
+    updateHighlightButtonText();
 }
 
+/**
+ * UIからパラメータを取得
+ */
 function getSimulationParams() {
-    const tickets = parseInt(document.getElementById('simTicketInput').value);
+    const ticketsInput = document.getElementById('simTicketInput');
+    const tickets = parseInt(ticketsInput.value);
+    
     if (isNaN(tickets) || tickets <= 0) {
         alert("チケット枚数を正しく入力してください。");
         return null;
     }
 
-    const layers = document.querySelectorAll('.layer-selection-area');
-    const targetLayers = Array.from(layers).map(area => {
-        const checked = area.querySelectorAll('.layer-target-checkbox:checked');
-        return Array.from(new Set(Array.from(checked).map(cb => parseInt(cb.value))));
-    });
-
-    return { tickets, targetLayers };
+    return { tickets };
 }
 
+/**
+ * シミュレーションの実行
+ */
 function runSimulation() {
     if (!viewData.calculatedData) {
         alert("表示データがありません。まず「更新」ボタンを押してください。");
@@ -3640,21 +3696,94 @@ function runSimulation() {
 
     const { Nodes, thresholds } = viewData.calculatedData;
     const { gacha, initialLastRollId } = viewData;
-    const initialNg = new URLSearchParams(window.location.search).get('ng') || 'none';
+    const currentParams = new URLSearchParams(window.location.search);
+    const initialNg = currentParams.get('ng') || 'none';
 
+    // 最適ルート探索の実行
     const result = runGachaSearch(
-        Nodes, initialLastRollId, params.tickets, gacha, 
-        thresholds, initialNg, params.targetLayers
+        Nodes, 
+        initialLastRollId, 
+        params.tickets, 
+        gacha, 
+        thresholds, 
+        initialNg
     );
-    
-    displaySimulationResult(result);
+
+    // ルート情報を保存
+    if (viewData) {
+        // Mapを使用して、どのアドレスにどの種類のハイライトを適用するかを保持
+        // キー: アドレス(例: "A1", "B22G"), 値: 種別(例: "single", "ten-normal", "ten-guar")
+        viewData.highlightedRoute = new Map();
+        
+        if (result) {
+            result.path.forEach(p => {
+                if (p.type === 'single') {
+                    // targetCell: { addr, type }
+                    viewData.highlightedRoute.set(p.targetCell.addr, p.targetCell.type);
+                } else if (p.type === 'ten') {
+                    // targetCells: Array<{ addr, type }>
+                    p.targetCells.forEach(cell => {
+                        viewData.highlightedRoute.set(cell.addr, cell.type);
+                    });
+                }
+            });
+            // 結果が出たらハイライトを強制的にONにする
+            viewData.showSimHighlight = true;
+        }
+        
+        updateHighlightButtonText();
+        
+        // メインテーブルの再描画
+        if (typeof runSimulationAndDisplay === 'function') {
+            runSimulationAndDisplay();
+        }
+    }
+
+    // 結果の表示 (view-simulation-result.js)
+    if (typeof displaySimulationResult === 'function') {
+        displaySimulationResult(result);
+    }
 }
 
+/**
+ * ハイライト表示のON/OFFを切り替える
+ */
+function toggleHighlightMode() {
+    viewData.showSimHighlight = !viewData.showSimHighlight;
+    
+    updateHighlightButtonText();
+
+    // メインテーブルの再描画
+    if (typeof runSimulationAndDisplay === 'function') {
+        runSimulationAndDisplay();
+    }
+}
+
+/**
+ * ハイライト切替ボタンのテキストを更新
+ */
+function updateHighlightButtonText() {
+    const btn = document.getElementById('toggleHighlightBtn');
+    if (!btn) return;
+    
+    if (viewData.showSimHighlight) {
+        btn.textContent = 'ハイライト: ON';
+        btn.style.backgroundColor = '#007bff';
+    } else {
+        btn.textContent = 'ハイライト: OFF';
+        btn.style.backgroundColor = '#6c757d';
+    }
+}
+
+/**
+ * 結果コピー
+ */
 function copySimResult() {
     if (!window.lastSimText || !navigator.clipboard) {
-        alert("コピーする結果がありません。先にシミュレーションを実行してください。");
+        alert("コピーする結果がありません。");
         return;
     }
+    
     navigator.clipboard.writeText(window.lastSimText).then(() => {
         const btn = document.getElementById('copySimResultBtn');
         const originalText = btn.textContent;

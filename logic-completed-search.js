@@ -1,6 +1,6 @@
 /**
  * 担当: 最適ルート探索（ビームサーチ）のコアロジック
- * 修正: ロール種別（単発/10連1-9/10連10回目）に応じたハイライト種別の付与
+ * 修正: 強制レア被りモード (window.forceRerollMode) をシミュレーションに反映
  */
 
 /**
@@ -12,7 +12,6 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
 
     const gCycle = gacha.guaranteedCycle || 30;
     const isGuar = !isNaN(currentNg) && currentNg !== 'none' && currentNg > 0 && (gacha.uberGuaranteedFlag || gacha.legendGuaranteedFlag) && (currentNg <= 1);
-    
     if (isGuar) {
         return { 
             items: [{
@@ -28,7 +27,10 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
             hType: 'single' // 単発ハイライト
         };
     } else {
-        const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === lastId;
+        // 通常の被り判定、または強制再抽選モードの適用
+        const isMatch = (node.itemId === lastId);
+        const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+
         let finalId = node.itemId;
         if (isRR && node.reRollItemId !== undefined) {
             finalId = node.reRollItemId;
@@ -80,7 +82,6 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
     let tempLastId = lastId;
 
     for (let i = 0; i < 10; i++) {
-        // 10連の最後（i=9）かどうかでハイライト色を分ける
         const hType = (i === 9) ? 'ten-guar' : 'ten-normal';
 
         if (i === guaranteedRollIndex) {
@@ -97,16 +98,19 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
                 isGuaranteed: true,
                 isReroll: false
             });
-            
             cellData.push({ addr: slotNode.address + 'G', type: hType });
             
             ptr += 1;
             tempLastId = itemIdG;
+            tNgTracker = gCycle;
         } else {
             const node = Nodes[ptr - 1];
             if (!node) return null;
 
-            const isRR = node.rarityId === 1 && node.poolSize > 1 && node.itemId === tempLastId;
+            const isMatch = (node.itemId === tempLastId);
+            // 通常の被り判定、または強制再抽選モードの適用
+            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+
             let finalId = node.itemId;
             if (isRR && node.reRollItemId !== undefined) {
                 finalId = node.reRollItemId;
@@ -153,7 +157,6 @@ function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
 
         let bestStateInTier = null;
         let bestScoreInTier = -1;
-
         for (const state of statesInTier.values()) {
             const score = calculateScore(state);
             if (score > bestScoreInTier) {
@@ -170,9 +173,8 @@ function findBestBeamSearchResult(dp, totalTickets, calculateScore) {
  * 探索メイン関数
  */
 function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, thresholds, initialNg) {
-    const BEAM_WIDTH = 1000; 
+    const BEAM_WIDTH = 1000;
     const dp = new Array(totalTickets + 1).fill(null).map(() => new Map());
-
     dp[0].set(`1_${initialLastRollId}_${initialNg}`, {
         nodeIdx: 1,
         lastId: initialLastRollId,
@@ -183,14 +185,12 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
         rollCount: 1,
         tickets: 0
     });
-
     const calculateScore = (state) => {
         return (state.ubers * 10000) + (state.legends * 1000);
     };
 
     for (let t = 0; t <= totalTickets; t++) {
         if (!dp[t] || dp[t].size === 0) continue;
-
         if (dp[t].size > BEAM_WIDTH) {
             const sortedStates = Array.from(dp[t].values()).sort((a, b) => calculateScore(b) - calculateScore(a));
             const newDp = new Map();
@@ -250,8 +250,9 @@ function runGachaSearch(Nodes, initialLastRollId, totalTickets, gacha, threshold
                             isReroll: item.isReroll
                         });
                     });
-
                     const nextStateTen = {
+                        nodeIdx: state.nodeIdx + resTen.useSeeds,
+                        lastId: state.nodeIdx + resTen.useSeeds, // ptrを正しく管理
                         nodeIdx: state.nodeIdx + resTen.useSeeds,
                         lastId: resTen.nextLastId,
                         currentNg: resTen.nextNg,
