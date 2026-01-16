@@ -1,6 +1,6 @@
 /**
  * 担当: 「コンプ済み」ビューのメインテーブル描画およびポップアップ制御
- * 修正: シミュレーション結果の3色ハイライト（薄いオレンジ/オレンジ/濃いオレンジ）出し分けに対応
+ * 修正: リンク内 ng パラメータの開始値を「入力値 - 1」とし、10ロールサイクル（1の次は10）に準拠
  */
 
 window.viewData = {
@@ -86,12 +86,21 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
         : `<tr><th id="forceRerollToggle" class="col-no">#</th><th>A</th><th>AG</th><th>B</th><th>BG</th></tr>`;
     table += header + '</thead><tbody>';
 
+    const initialNgNum = (initialNg !== 'none' && !isNaN(parseInt(initialNg))) ? parseInt(initialNg) : null;
+
     for (let r = 1; r <= tableRows; r++) {
         const nodeIdxA = (r - 1) * 2 + 1;
         const nodeIdxB = (r - 1) * 2 + 2;
         const nodeA = Nodes[nodeIdxA - 1];
         const nodeB = Nodes[nodeIdxB - 1];
         if (!nodeA || !nodeB) break;
+
+        // --- この行の ng パラメータを計算 ---
+        // ユーザー入力(initialNgNum)が実行前の値のため、1行目(r=1)を 入力値-1 からスタートさせる
+        let rowNg = 'none';
+        if (initialNgNum !== null) {
+            rowNg = ((initialNgNum - r - 1) % 10 + 10) % 10 + 1;
+        }
 
         table += `<tr><td class="col-no">${r}</td>`;
 
@@ -100,20 +109,12 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
             const info = highlightInfo.get(addr);
             
             let cls = '';
-            
-            // --- シミュレーションハイライトの判定 ---
             if (viewData.showSimHighlight && viewData.highlightedRoute instanceof Map && viewData.highlightedRoute.has(addr)) {
                 const hType = viewData.highlightedRoute.get(addr);
-                // 種別に応じて3つのCSSクラスを使い分け
-                if (hType === 'single') {
-                    cls = 'route-highlight-single';
-                } else if (hType === 'ten-normal') {
-                    cls = 'route-highlight-ten-normal';
-                } else if (hType === 'ten-guar') {
-                    cls = 'route-highlight-ten-guar';
-                }
+                if (hType === 'single') cls = 'route-highlight-single';
+                else if (hType === 'ten-normal') cls = 'route-highlight-ten-normal';
+                else if (hType === 'ten-guar') cls = 'route-highlight-ten-guar';
             } else {
-                // 通常のルートハイライト表示（シミュレーションルート外、またはトグルOFF時）
                 cls = determineHighlightClass(info);
             }
 
@@ -130,7 +131,6 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                 if (id === undefined || id === null || id === -1) return '---';
                 const name = getItemNameSafe(id);
                 if (skipStyle) return name;
-                
                 const item = itemMaster[id];
                 if (!item) return name;
                 if (item.rarity === 3) return `<span style="color:#d9534f; font-weight:bold;">${name}</span>`;
@@ -167,20 +167,20 @@ function createAndDisplayCompletedSeedView(initialSeed, gacha, tableRows, thresh
                         if (isPartnerRR) {
                             const poolG = gacha.rarityItems[node.rarityGId] || [];
                             const itemG_rr_Id = poolG[node.seed2 % Math.max(1, poolG.length)];
-                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
-                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, itemG_rr_Id, initialNg, r, true)}">${getFmt(itemG_rr_Id, true)}</a>`;
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, rowNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, itemG_rr_Id, rowNg, r, true)}">${getFmt(itemG_rr_Id, true)}</a>`;
                             displayHtml = `${link1}<br>${link2}`;
                         } else {
-                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, initialNg, r, true)}">${baseName}</a>`;
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemGId, rowNg, r, true)}">${baseName}</a>`;
                         }
                     } else {
                         const baseName = getFmt(node.itemId);
                         if (isPartnerRR) {
-                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
-                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, node.reRollItemId, initialNg, r, true)}">${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}</a>`;
+                            const link1 = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, rowNg, r, true)}">${baseName}</a>`;
+                            const link2 = `<a href="${generateItemLink(currentParams, node.seed3, node.reRollItemId, rowNg, r, true)}">${getAddress(node.index + 3)})${getFmt(node.reRollItemId)}</a>`;
                             displayHtml = `${link1}<br>${link2}`;
                         } else {
-                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, initialNg, r, true)}">${baseName}</a>`;
+                            displayHtml = `<a href="${generateItemLink(currentParams, node.seed2, node.itemId, rowNg, r, true)}">${baseName}</a>`;
                         }
                     }
                 }
