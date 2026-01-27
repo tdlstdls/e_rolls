@@ -11,6 +11,10 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
     const maxSeedsNeeded = tableRows * 10 + 1000;
     const SEED = generateSeedList(initialSeed, maxSeedsNeeded);
     const getAddress = (n) => getAddressStringGeneric(n, 3);
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
     // 2. 全ノード計算 (メインテーブル用)
     const Nodes = [];
     const maxNodes = tableRows * 3 + 20;
@@ -18,7 +22,11 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
 
     const ngVal = parseInt(params.get('ng'), 10);
     const initialFs = parseInt(params.get('fs'), 10) || 0;
+<<<<<<< HEAD
     const guaranteedCycle = gacha.guaranteedCycle || 30;
+=======
+    const gCycle = gacha.guaranteedCycle || 10;
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
     
     for (let i = 1; i <= maxNodes; i++) {
         const seedStartIdx = i;
@@ -27,6 +35,10 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
         const s3 = SEED[seedStartIdx + 2];
         const s4 = SEED[seedStartIdx + 3]; 
         let prevSeedVal = SEED[seedStartIdx - 1];
+<<<<<<< HEAD
+=======
+        
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
         const node = {
             index: i, address: getAddress(i),
             seed1: s1, seed2: s2, seed3: s3, seed4: s4,
@@ -42,7 +54,11 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
         node.rarity = getRarityFromRoll(s2 % 10000, thresholds);
         node.rarityId = node.rarity.id;
         node.rarityName = node.rarity.name;
+<<<<<<< HEAD
         // レアリティ範囲表示用
+=======
+        
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
         let lowerBound = 0, upperBound = 10000;
         const rarityIds = Object.keys(thresholds).map(Number).sort((a, b) => a - b);
         for(const id of rarityIds) {
@@ -50,6 +66,10 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
             if (id === node.rarityId) { upperBound = thresholds[id]; break; }
         }
         node.rarityRateRangeDisplay = `${lowerBound}<=${s2 % 10000}<${upperBound}`;
+<<<<<<< HEAD
+=======
+        
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
         const pool = gacha.rarityItems[node.rarityId] || [];
         node.poolSize = pool.length;
         if (pool.length > 0) {
@@ -61,6 +81,7 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
             node.itemId = -1; node.itemName = '---';
         }
         
+<<<<<<< HEAD
         const isRare = (node.rarityId === 1);
         if (isRare && pool.length > 1) {
             const reRollPool = pool.filter(id => id !== node.itemId);
@@ -74,6 +95,18 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
         }
 
         // Dupe判定用
+=======
+        if (node.rarityId === 1 && pool.length > 1) {
+            const reRollPool = pool.filter(id => id !== node.itemId);
+            if (reRollPool.length > 0) {
+                node.reRollSlot = s4 % rePool.length;
+                node.reRollItemId = reRollPool[node.reRollSlot];
+                node.reRollItemName = getItemNameSafe(node.reRollItemId);
+            } else { node.reRollItemId = -1; node.reRollItemName = '---'; }
+        } else { node.reRollItemId = -1; node.reRollItemName = '---'; }
+
+        // Dupe判定
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
         let compareId3Node = -1, compareId4Node = -1;
         let compareName3Node = '---', compareName4Node = '---';
         
@@ -86,7 +119,12 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
                  compareId3Node = pNode3.itemId;
                  compareName3Node = pNode3.itemName;
             } else if (i <= 3) {
+<<<<<<< HEAD
                 compareId3Node = initialLastRollId || -1; compareName3Node = getItemNameSafe(initialLastRollId || -1);
+=======
+                compareId3Node = initialLastRollId || -1; 
+                compareName3Node = getItemNameSafe(initialLastRollId || -1);
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
             }
             const pNode4 = (i > 4) ? Nodes[i-5] : null;
             if (pNode4 && pNode4.singleUseSeeds === 4 && pNode4.reRollItemId !== -1) {
@@ -99,7 +137,11 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
         const isDupe3 = (currentId !== -1 && currentId === compareId3Node);
         const isDupe4 = (compareId4Node !== -1 && currentId === compareId4Node);
         
+<<<<<<< HEAD
         // 強制再抽選モードがONなら、レア(1)はすべてDupe扱いにする
+=======
+        // 強制再抽選モード対応
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
         node.isDupe = (node.rarityId === 1 && (isDupe3 || isDupe4 || window.forceRerollMode)); 
 
         if (node.rarityId === 1) {
@@ -116,8 +158,13 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
     let sLastActualItemId = initialLastRollId || -1; 
     let sCurrentFs = initialFs;
     const singleRoutePath = new Map();
+<<<<<<< HEAD
     const hasGuaranteed = !isNaN(ngVal);
     let currentNg = hasGuaranteed ? ngVal : -1;
+=======
+    const hasGuaranteed = !isNaN(ngVal) && ngVal !== 'none';
+    let currentNg = hasGuaranteed ? parseInt(ngVal, 10) : -1;
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
 
     for (let roll = 1; roll <= tableRows; roll++) {
         if (sIdx > maxNodes) break;
@@ -128,6 +175,7 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
         node.singleCompareItemName = getItemNameSafe(sLastActualItemId);
         node.singleCompareItemId = sLastActualItemId; 
 
+<<<<<<< HEAD
             let usedSeeds = 0;
             let finalId = -1;
             if (node.isFeatured) {
@@ -202,9 +250,109 @@ function calculateUncompletedData(initialSeed, gacha, tableRows, thresholds, ini
     }
     
     // 5. Simロジック委譲: 10連サイクル計算 & 期待値計算
+=======
+        let usedSeeds = 0;
+        let finalId = -1;
+
+        if (isGuaranteedRoll) {
+            // 確定ロール: 目玉(確定)扱い。通常枠シード消費なし
+            node.singleRoll = `${roll}g`;
+            node.isGuaranteedRoll = true;
+            node.singleUseSeeds = 0; // 確定枠自体はシードを消費しない(位置固定のため)
+            node.singleNextAddr = node.address;
+            sLastActualItemId = -2;
+        } else if (node.isFeatured) {
+            usedSeeds = 1;
+            finalId = -2; 
+            node.singleRoll = roll;
+            node.singleUseSeeds = usedSeeds;
+            node.singleNextAddr = node.featuredNextAddress; 
+            if (sCurrentFs > 0) { 
+                sCurrentFs -= 1;
+                node.isFeaturedUsedFs = true; 
+            }
+            sLastActualItemId = finalId;
+        } else {
+            const poolSize = node.poolSize;
+            const currentId = Number(node.itemId);
+            const lastId = Number(sLastActualItemId);
+            const isMatch = (currentId !== -1 && lastId !== -1 && currentId === lastId);
+            
+            // 強制再抽選モード対応
+            const isReroll = (node.rarityId === 1) && (isMatch || window.forceRerollMode) && poolSize > 1; 
+            
+            finalId = isReroll ? node.reRollItemId : node.itemId;
+            usedSeeds = isReroll ? 4 : 3;
+            
+            node.singleIsReroll = isReroll; 
+            node.singleRoll = roll;
+            node.singleUseSeeds = usedSeeds;
+            node.singleNextAddr = isReroll ? node.reRollNextAddress : node.normalNextAddress; 
+            sLastActualItemId = finalId;
+        }
+
+        // NGカウンターの線形デクリメント
+        if (hasGuaranteed) {
+            currentNg--;
+            if (currentNg <= 0) currentNg = gCycle;
+        }
+
+        singleRoutePath.set(sIdx, roll);
+        sIdx = sIdx + (node.singleUseSeeds || 0); // 確定時は0、通常時は3 or 4
+        if (isGuaranteedRoll) sIdx += 0; // 遷移なし
+        else if (node.singleUseSeeds === null) sIdx += 3;
+    }
+
+    // 4. Highlight Info 生成
+    sIdx = 1;
+    let hNg = hasGuaranteed ? parseInt(ngVal, 10) : -1;
+    for (let roll = 1; roll <= tableRows; roll++) {
+        if (sIdx > maxNodes) break;
+        const node = Nodes[sIdx - 1];
+        if (!node) break;
+        
+        const isG = hasGuaranteed && hNg === 1;
+        const addressKey = node.address;
+        const info = highlightInfo.get(addressKey) || {};
+        
+        info.single = true; 
+        info.singleRoll = isG ? `${roll}g` : roll;
+        
+        if (isG) {
+            info.s_guaranteed = true;
+        } else if (node.isFeatured) {
+            info.s_featured = true;
+            info.s_reRoll = false;
+        } else {
+            info.s_featured = false;
+            info.s_reRoll = node.singleIsReroll;
+            info.s_normalName = node.itemName;
+            if (info.s_reRoll) info.s_reRollName = node.reRollItemName;
+        }
+        
+        highlightInfo.set(addressKey, info);
+
+        // 次のノードへ進む
+        let jump = 3;
+        if (isG) jump = 0;
+        else if (node.isFeatured) jump = 1;
+        else if (node.singleIsReroll) jump = 4;
+        
+        sIdx += jump;
+        if (hasGuaranteed) {
+            hNg--;
+            if (hNg <= 0) hNg = gCycle;
+        }
+    }
+    
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
     const tenPullCyclesData = calculateTenPullsOverCycles(SEED, gacha, thresholds, ngVal, initialLastRollId, 10);
     const nRollsArray = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     const expectedFeaturedCounts = calculateExpectedFeaturedCounts(SEED, gacha, thresholds, nRollsArray, ngVal, initialLastRollId);
 
     return { Nodes, highlightInfo, maxNodes, singleRoutePath, tenPullCyclesData, expectedFeaturedCounts };
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 5e0b83a616ebb5025e499b3f5d1bd2d23519dcb9
