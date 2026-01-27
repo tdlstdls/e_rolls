@@ -29,7 +29,7 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
     } else {
         // 通常の被り判定、または強制再抽選モードの適用
         const isMatch = (node.itemId === lastId);
-        const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+        const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode));
 
         let finalId = node.itemId;
         if (isRR && node.reRollItemId !== undefined) {
@@ -109,7 +109,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
 
             const isMatch = (node.itemId === tempLastId);
             // 通常の被り判定、または強制再抽選モードの適用
-            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode));
 
             let finalId = node.itemId;
             if (isRR && node.reRollItemId !== undefined) {
