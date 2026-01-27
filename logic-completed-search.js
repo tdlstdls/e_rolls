@@ -45,7 +45,7 @@ function simulateSingleRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) 
         };
     } else {
         const isMatch = (node.itemId === lastId);
-        const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+        const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode));
 
         let finalId = node.itemId;
         if (isRR && node.reRollItemId !== undefined) {
@@ -124,7 +124,7 @@ function simulateTenRoll(startIdx, lastId, rollNum, currentNg, gacha, Nodes) {
             if (!node) return null;
 
             const isMatch = (node.itemId === tempLastId);
-            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode)) || node.reRerollFlag;
+            const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode));
 
             let finalId = node.itemId;
             if (isRR && node.reRollItemId !== undefined) {
